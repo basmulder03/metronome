@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
+import type { Page } from '@playwright/test';
 import { copyFileSync, readFileSync } from 'node:fs';
 import { makePdf } from './make-pdf.mjs';
 

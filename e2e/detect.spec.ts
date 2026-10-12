@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('auto-detect on a real score finds the first system as 6 measures and plays from a picked one', async ({ page }) => {
   await page.goto('/');

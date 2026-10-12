@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { makePdf } from './make-pdf.mjs';
 
 test.beforeAll(() => makePdf('e2e/score.pdf'));

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 // Real public-domain score (see fixtures/README.txt): 3/4, quarter=130, first system has 6 measures.
