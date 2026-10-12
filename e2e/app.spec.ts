@@ -211,8 +211,9 @@ test('pickup shortens the first bar and a fermata stretches a beat', async ({ pa
   await openAndMark(page);
   await setTempo(page, '120');
   await page.locator('.box').nth(0).click();
-  await page.getByLabel('Beats in this measure (pickup)').fill('1');
-  await page.getByLabel('Beats in this measure (pickup)').blur();
+  await page.getByLabel('Written part of this bar').selectOption('end'); // an upbeat: only the last beats
+  await page.getByLabel('How many beats are written').fill('1');
+  await page.getByLabel('How many beats are written').blur();
   await expect(page.locator('.box').nth(0)).toContainText('pickup 1');
   expect(await wavSeconds(page)).toBeCloseTo(7, 1); // 0.5 s pickup + 3 bars x 2 s + 0.5 s tail
   await page.locator('.box').nth(3).click();
@@ -287,4 +288,25 @@ test('the page is drawn again when the window gets a different size', async ({ p
   await expect.poll(width, { timeout: 5000 }).toBeLessThan(before * 0.8); // re-rendered smaller, not just stretched
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await expect(page.locator('.box')).toHaveCount(4); // markup is untouched
+});
+
+
+test('a short ending bar completes an upbeat piece, and the count-in leaves room for the upbeat', async ({ page }) => {
+  await openAndMark(page); // 4 measures of 4/4
+  await setTempo(page, '120'); // a beat is 0.5 s
+  await page.locator('.box').nth(0).click();
+  await page.getByLabel('Written part of this bar').selectOption('end');
+  await expect(page.getByLabel('How many beats are written')).toHaveValue('1'); // default: a one-beat upbeat
+  await page.locator('.box').nth(3).click();
+  await page.getByLabel('Written part of this bar').selectOption('start'); // the last bar ends early
+  await page.getByLabel('How many beats are written').fill('3');
+  await page.getByLabel('How many beats are written').blur();
+  await expect(page.locator('.box').nth(0)).toContainText('pickup 1');
+  await expect(page.locator('.box').nth(3)).toContainText('short 3');
+  expect(await wavSeconds(page)).toBeCloseTo((1 + 4 + 4 + 3) * 0.5 + 0.5, 1); // 12 beats and the tail
+
+  await page.getByText('Options').click();
+  await page.getByLabel('Count-in').selectOption('1');
+  // "1 2 3" then the upbeat is "4": three count-in beats, not four
+  expect(await wavSeconds(page)).toBeCloseTo(3 * 0.5 + (1 + 4 + 4 + 3) * 0.5 + 0.5, 1);
 });
