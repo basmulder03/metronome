@@ -17,6 +17,8 @@
   import LibraryPanel from './features/library/LibraryPanel.svelte';
   import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, saveCurrent, useUser } from './features/library/library.svelte';
   import { auth, signOut } from './features/auth/auth.svelte';
+  import { hooks, startSync, sync, syncNow } from './features/sync/sync.svelte';
+  import { onDestroy } from 'svelte';
   import { useDatabase } from './shared/idb';
   import Button from './shared/ui/Button.svelte';
   import Segmented from './shared/ui/Segmented.svelte';
@@ -42,6 +44,8 @@
   let view = $state<PdfView>();
   let status = $state('');
 
+  let stopSync = () => {};
+  onDestroy(() => stopSync());
   let libraryPanel: LibraryPanel;
   let playlistPanel: PlaylistPanel;
   let saveTimer = 0;
@@ -77,6 +81,14 @@
   void (async () => {
     await init();
     await initPlaylists();
+    // what sync changes in the open piece shows up straight away
+    hooks.applied = (kind, id, what) => {
+      if (kind !== 'pieces' || id !== lib.currentId) return;
+      if (what === 'dropped') { app.piece = emptyPiece(); app.selected = -1; doc = null; status = 'This piece was deleted on another device.'; return; }
+      const e = entry(id);
+      if (e) app.piece = structuredClone($state.snapshot(e.piece)) as typeof app.piece;
+    };
+    stopSync = startSync();
     const id = lastId();
     if (id && entry(id)) await openEntry(id);
     await importFromHash();
@@ -209,6 +221,8 @@
       </label>
       <label>Theme <ThemeToggle /></label>
       <div class="acct">
+        <span class="mut">{sync.status === 'syncing' ? 'Syncing…' : sync.status === 'offline' ? 'Offline: changes sync when you reconnect' : sync.status === 'error' ? 'Sync failed, try again' : sync.last ? 'Up to date' : 'Not synced yet'}</span>
+        <Button size="sm" onclick={() => void syncNow()} disabled={sync.status === 'syncing'}>Sync now</Button>
         <span class="mut">Signed in as {auth.user?.email}</span>
         <Button size="sm" onclick={signOut}>Sign out</Button>
       </div>
