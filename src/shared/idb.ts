@@ -2,10 +2,20 @@
 const STORES = ['pieces', 'pdfs', 'playlists'] as const;
 export type Store = (typeof STORES)[number];
 
+let dbName = 'metronome';
 let dbp: Promise<IDBDatabase> | undefined;
+
+/** Each account gets its own database, so people sharing a browser never see each other's library. */
+export function useDatabase(name: string) {
+  if (name === dbName) return;
+  void dbp?.then((d) => d.close());
+  dbName = name;
+  dbp = undefined;
+}
+
 const db = () =>
   (dbp ??= new Promise((res, rej) => {
-    const r = indexedDB.open('metronome', 1);
+    const r = indexedDB.open(dbName, 1);
     r.onupgradeneeded = () => STORES.forEach((s) => r.result.createObjectStore(s));
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);

@@ -15,11 +15,20 @@
   import PlaylistPanel from './features/playlist/PlaylistPanel.svelte';
   import { initPlaylists } from './features/playlist/playlist.svelte';
   import LibraryPanel from './features/library/LibraryPanel.svelte';
-  import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, saveCurrent } from './features/library/library.svelte';
+  import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, saveCurrent, useUser } from './features/library/library.svelte';
+  import { auth, signOut } from './features/auth/auth.svelte';
+  import { useDatabase } from './shared/idb';
   import Button from './shared/ui/Button.svelte';
   import Segmented from './shared/ui/Segmented.svelte';
   import Sheet from './shared/ui/Sheet.svelte';
   import ThemeToggle from './shared/ui/ThemeToggle.svelte';
+
+  let { userId }: { userId: string } = $props();
+  // this account's own local database and remembered state, before anything reads them
+  // svelte-ignore state_referenced_locally -- Root remounts this component (a {#key}) when the account changes
+  useDatabase(`metronome-${userId}`);
+  // svelte-ignore state_referenced_locally
+  useUser(userId);
 
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -199,6 +208,10 @@
         </select>
       </label>
       <label>Theme <ThemeToggle /></label>
+      <div class="acct">
+        <span class="mut">Signed in as {auth.user?.email}</span>
+        <Button size="sm" onclick={signOut}>Sign out</Button>
+      </div>
     </div>
   </details>
 </header>
@@ -234,6 +247,8 @@
   .end { margin-left: auto; }
   .opts { position: relative; }
   .opts summary { cursor: pointer; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); display: inline-flex; align-items: center; }
+  .acct { display: grid; gap: var(--space-2); justify-items: start; }
+  .acct .mut { margin: 0; font-size: var(--font-sm); overflow-wrap: anywhere; }
   .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
   .status { margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }

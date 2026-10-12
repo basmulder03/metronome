@@ -5,7 +5,9 @@ export type Entry = { id: string; title: string; updated: number; hasPdf: boolea
 
 export const lib = $state({ entries: [] as Entry[], currentId: null as string | null, ready: false });
 
-const LAST = 'metronome.last';
+let LAST = 'metronome.last';
+/** Scope remembered state to the signed-in account. */
+export const useUser = (uid: string) => { LAST = `metronome.last.${uid}`; };
 export const lastId = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
 export const rememberLast = (id: string | null) => { try { id ? localStorage.setItem(LAST, id) : localStorage.removeItem(LAST); } catch { /* not remembered */ } };
 

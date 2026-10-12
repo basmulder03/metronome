@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// the backend (PocketBase) listens on 8090; the app talks to it through same-origin /api
+const proxy = { '/api': 'http://127.0.0.1:8090' };
+
 export default defineConfig({
   plugins: [
     svelte(),
@@ -23,8 +26,10 @@ export default defineConfig({
         ],
       },
       // everything the app needs, including the pdf.js worker, is precached so it works offline
-      workbox: { globPatterns: ['**/*.{js,mjs,css,html,svg,png}'], maximumFileSizeToCacheInBytes: 3_000_000, navigateFallback: 'index.html' },
+      workbox: { globPatterns: ['**/*.{js,mjs,css,html,svg,png}'], maximumFileSizeToCacheInBytes: 3_000_000, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api/, /^\/_\//] },
     }),
   ],
+  server: { proxy },
+  preview: { proxy },
   test: { include: ['src/**/*.test.ts'] },
 });
