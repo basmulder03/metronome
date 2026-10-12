@@ -1,5 +1,5 @@
 /** Minimal promise wrapper over IndexedDB (one database, a few key-value stores). */
-const STORES = ['pieces', 'pdfs', 'playlists'] as const;
+const STORES = ['pieces', 'pdfs', 'playlists', 'meta'] as const;
 export type Store = (typeof STORES)[number];
 
 let dbName = 'metronome';
@@ -15,8 +15,8 @@ export function useDatabase(name: string) {
 
 const db = () =>
   (dbp ??= new Promise((res, rej) => {
-    const r = indexedDB.open(dbName, 1);
-    r.onupgradeneeded = () => STORES.forEach((s) => r.result.createObjectStore(s));
+    const r = indexedDB.open(dbName, 2);
+    r.onupgradeneeded = () => STORES.forEach((s) => { if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s); });
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
   }));

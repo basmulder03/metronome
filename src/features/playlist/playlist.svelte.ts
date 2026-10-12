@@ -1,6 +1,8 @@
+import { notifyChange } from '../../shared/changes';
 import { all, del, put } from '../../shared/idb';
+import { addTombstone, clearTombstone } from '../../shared/tombstones';
 
-export type Playlist = { id: string; name: string; gap: number; items: string[] }; // items: library piece ids
+export type Playlist = { id: string; name: string; gap: number; items: string[]; updated?: number }; // items: library piece ids
 
 export const pl = $state({ lists: [] as Playlist[] });
 
@@ -8,18 +10,40 @@ export async function initPlaylists() {
   pl.lists = (await all<Playlist>('playlists')).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-const save = (p: Playlist) => put('playlists', p.id, $state.snapshot(p));
+const write = (p: Playlist) => put('playlists', p.id, $state.snapshot(p));
 
 export async function createPlaylist(name: string) {
-  const p: Playlist = { id: crypto.randomUUID(), name: name.trim() || 'Playlist', gap: 4, items: [] };
+  const p: Playlist = { id: crypto.randomUUID(), name: name.trim() || 'Playlist', gap: 4, items: [], updated: Date.now() };
   pl.lists.push(p);
-  await save(p);
+  await write(p);
+  notifyChange();
   return p;
 }
 
-export const touch = (p: Playlist) => save(p);
+/** Persist an edit made to a playlist. */
+export async function touch(p: Playlist) {
+  p.updated = Date.now();
+  await write(p);
+  notifyChange();
+}
 
 export async function removePlaylist(id: string) {
+  pl.lists = pl.lists.filter((p) => p.id !== id);
+  await del('playlists', id);
+  await addTombstone('playlists', id);
+  notifyChange();
+}
+
+/** Create or overwrite a playlist with what the server has (keeping its timestamp). */
+export async function applyRemotePlaylist(p: Playlist) {
+  const i = pl.lists.findIndex((x) => x.id === p.id);
+  if (i >= 0) pl.lists[i] = p; else pl.lists.push(p);
+  await write(p);
+  await clearTombstone('playlists', p.id);
+}
+
+/** Deleted on another device. */
+export async function dropLocalPlaylist(id: string) {
   pl.lists = pl.lists.filter((p) => p.id !== id);
   await del('playlists', id);
 }

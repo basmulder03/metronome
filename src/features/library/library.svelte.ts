@@ -1,4 +1,6 @@
+import { notifyChange } from '../../shared/changes';
 import { all, del, get, put } from '../../shared/idb';
+import { addTombstone, clearTombstone } from '../../shared/tombstones';
 import { emptyPiece, type Piece } from '../../shared/types';
 
 export type Entry = { id: string; title: string; updated: number; hasPdf: boolean; piece: Piece };
@@ -27,6 +29,7 @@ export async function create(title: string, pdf?: Blob, piece: Piece = emptyPiec
   await put('pieces', e.id, $state.snapshot(e));
   if (pdf) await put('pdfs', e.id, pdf);
   byRecent();
+  notifyChange();
   return e.id;
 }
 
@@ -40,25 +43,50 @@ export async function attachPdf(id: string, pdf: Blob) {
   await put('pieces', id, $state.snapshot(e));
 }
 
-/** Persist the markup of the open piece. */
+/** Persist the markup of the open piece. Only a real change bumps `updated`, or opening a piece would beat newer edits from another device. */
 export async function saveCurrent(piece: Piece) {
   const e = entry(lib.currentId);
   if (!e) return;
-  e.piece = $state.snapshot(piece) as Piece;
+  const next = $state.snapshot(piece) as Piece;
+  if (JSON.stringify(next) === JSON.stringify($state.snapshot(e.piece))) return;
+  e.piece = next;
   e.updated = Date.now();
   await put('pieces', e.id, $state.snapshot(e));
+  notifyChange();
+}
+
+/** Create or overwrite a piece with what the server has. Keeps the server's timestamp so the next sync sees no difference. */
+export async function applyRemote(id: string, title: string, piece: Piece, updated: number) {
+  const e = entry(id);
+  if (e) { e.title = title; e.piece = piece; e.updated = updated; }
+  else lib.entries.push({ id, title, piece, updated, hasPdf: false });
+  await put('pieces', id, $state.snapshot(entry(id)));
+  await clearTombstone('pieces', id);
+  byRecent();
+}
+
+/** The piece was deleted on another device: drop it (and its PDF) here without creating a tombstone. */
+export async function dropLocal(id: string) {
+  lib.entries = lib.entries.filter((e) => e.id !== id);
+  await del('pieces', id);
+  await del('pdfs', id);
+  if (lib.currentId === id) { lib.currentId = null; rememberLast(null); }
 }
 
 export async function rename(id: string, title: string) {
   const e = entry(id);
   if (!e || !title.trim()) return;
   e.title = title.trim();
+  e.updated = Date.now();
   await put('pieces', id, $state.snapshot(e));
+  notifyChange();
 }
 
 export async function remove(id: string) {
   lib.entries = lib.entries.filter((e) => e.id !== id);
   await del('pieces', id);
   await del('pdfs', id);
+  await addTombstone('pieces', id);
   if (lib.currentId === id) { lib.currentId = null; rememberLast(null); }
+  notifyChange();
 }
