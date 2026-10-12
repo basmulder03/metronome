@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as pdfjs from 'pdfjs-dist';
   import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-  import { beatRange, Player, renderWav } from './features/playback/audio';
+  import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn } from './features/tempo-map/timeline';
   import { detectMeasures } from './features/score/detect';
   import { insertMeasures, removeMeasure } from './features/score/markup';
@@ -48,6 +48,7 @@
   let subdivide = $state(false);
   let playing = $state(false);
   let busy = $state(false);
+  let progress = $state(0);
   let view = $state<PdfView>();
   let status = $state('');
 
@@ -159,10 +160,14 @@
 
   async function exportWav() {
     if (!app.piece.measures.length) return;
+    const tl = timeline();
+    const job = clickEvents(tl, 0, app.piece.measures.length - 1, { subdivide }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
+    const warning = longExportWarning(job.seconds);
+    if (warning && !confirm(warning)) return;
     busy = true;
+    progress = 0;
     try {
-      const tl = timeline();
-      const blob = await renderWav(tl, 0, app.piece.measures.length - 1, { subdivide }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
+      const blob = await renderJob(job, (f) => (progress = f));
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'click-track.wav' });
       a.click();
       URL.revokeObjectURL(a.href);
@@ -262,7 +267,7 @@
     {:else}
       <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${app.selected + 1}` : 'Play'}>Play</Button>
     {/if}
-    <Button disabled={busy} onclick={exportWav}>{busy ? 'Rendering…' : 'Export WAV'}</Button>
+    <Button disabled={busy} onclick={exportWav}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export WAV'}</Button>
   </span>
   <details class="opts end">
     <summary>Options</summary>

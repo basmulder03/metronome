@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as pdfjs from 'pdfjs-dist';
   import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-  import { Player, renderWav } from '../playback/audio';
+  import { clickEvents, longExportWarning, Player, renderJob } from '../playback/audio';
   import MeasureStrip from '../score/MeasureStrip.svelte';
   import PdfView from '../score/PdfView.svelte';
   import { countIn } from '../tempo-map/timeline';
@@ -48,10 +48,13 @@
   }
 
   async function exportWav() {
+    const tl = timeline();
+    const job = clickEvents(tl, 0, last, { subdivide: false }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
+    const warning = longExportWarning(job.seconds);
+    if (warning && !confirm(warning)) return;
     busy = true;
     try {
-      const tl = timeline();
-      const blob = await renderWav(tl, 0, last, { subdivide: false }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
+      const blob = await renderJob(job);
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${title || 'click-track'}.wav` });
       a.click();
       URL.revokeObjectURL(a.href);

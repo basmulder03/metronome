@@ -114,39 +114,105 @@ export class Player {
 }
 
 export const SAMPLE_RATE = 44100;
+/** A click at `t` seconds from the start of the file. */
+export type ClickEvent = { t: number; accent: 0 | 1 | 2 };
+export type Job = { events: ClickEvent[]; seconds: number };
 
-/** Render measures from..to to mono samples, faster than real time and entirely in the browser. */
-export async function renderPcm(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = [], sampleRate = SAMPLE_RATE): Promise<Float32Array> {
+const TAIL_SECONDS = 0.5; // silence after the last click so the file does not cut off
+const CLICK_RING = 0.05; // a click rings a little past its start; that part is carried into the next chunk
+
+/** Everything a WAV needs for measures from..to: the clicks (count-in first) and the total length. */
+export function clickEvents(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = []): Job {
   const [i0, iEnd] = beatRange(tl, from, to);
   const t0 = tl.beats[i0].time;
   const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
   const lead = pre.length ? -pre[0].time : 0;
-  const ctx = new OfflineAudioContext(1, Math.ceil((lead + tEnd - t0 + 0.5) * sampleRate), sampleRate);
-  for (const b of pre) if (b.accent) click(ctx, lead + b.time, b.accent);
-  for (const b of tl.beats.slice(i0, iEnd)) if (audible(b.accent, opts)) click(ctx, lead + b.time - t0, b.accent);
+  const events: ClickEvent[] = [
+    ...pre.filter((b) => b.accent).map((b) => ({ t: lead + b.time, accent: b.accent })),
+    ...tl.beats.slice(i0, iEnd).filter((b) => audible(b.accent, opts)).map((b) => ({ t: lead + b.time - t0, accent: b.accent })),
+  ];
+  return { events, seconds: lead + tEnd - t0 + TAIL_SECONDS };
+}
+
+/** Put jobs one after another with silence between them (a playlist is just shifted clicks). */
+export function joinJobs(jobs: Job[], gapSeconds: number): Job {
+  const events: ClickEvent[] = [];
+  let offset = 0;
+  jobs.forEach((j, k) => {
+    for (const e of j.events) events.push({ t: e.t + offset, accent: e.accent });
+    offset += j.seconds + (k < jobs.length - 1 ? gapSeconds : 0);
+  });
+  return { events, seconds: offset };
+}
+
+type Render = (length: number, clicks: { at: number; accent: 0 | 1 | 2 }[], sampleRate: number) => Promise<Float32Array>;
+
+const offlineRender: Render = async (length, clicks, sampleRate) => {
+  const ctx = new OfflineAudioContext(1, length, sampleRate);
+  for (const c of clicks) click(ctx, c.at, c.accent);
   return (await ctx.startRendering()).getChannelData(0);
-}
+};
 
-export async function renderWav(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = []): Promise<Blob> {
-  return wavBlob(await renderPcm(tl, from, to, opts, pre), SAMPLE_RATE);
-}
-
-/** Join pieces of audio with silence between them. */
-export function concatPcm(parts: Float32Array[], gapSeconds: number, sampleRate = SAMPLE_RATE): Float32Array {
-  const gap = Math.round(gapSeconds * sampleRate);
-  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0) + gap * Math.max(0, parts.length - 1));
-  let o = 0;
-  parts.forEach((p, i) => { out.set(p, o); o += p.length + (i < parts.length - 1 ? gap : 0); });
+type Samples = Int16Array<ArrayBuffer>;
+const toInt16 = (f: Float32Array): Samples => {
+  const out: Samples = new Int16Array(f.length);
+  for (let i = 0; i < f.length; i++) out[i] = Math.max(-1, Math.min(1, f[i])) * 0x7fff;
   return out;
+};
+
+/**
+ * Render a job in windows of `chunkSeconds`, so memory is one window of floats (plus the 16-bit result) however long the job is.
+ * The ring of a click that starts near the end of a window is carried into the next one.
+ */
+export async function* renderChunks(
+  job: Job,
+  { sampleRate = SAMPLE_RATE, chunkSeconds = 120, render = offlineRender }: { sampleRate?: number; chunkSeconds?: number; render?: Render } = {},
+): AsyncGenerator<Samples> {
+  const total = Math.ceil(job.seconds * sampleRate);
+  const chunk = Math.max(1, Math.round(chunkSeconds * sampleRate));
+  const tail = Math.ceil(CLICK_RING * sampleRate);
+  const events = [...job.events].sort((a, b) => a.t - b.t);
+  let next = 0;
+  let carry = new Float32Array(0);
+  for (let start = 0; start < total; start += chunk) {
+    const len = Math.min(chunk, total - start);
+    const clicks: { at: number; accent: 0 | 1 | 2 }[] = [];
+    while (next < events.length && events[next].t * sampleRate < start + len) {
+      const e = events[next++];
+      clicks.push({ at: e.t - start / sampleRate, accent: e.accent });
+    }
+    const out = await render(len + tail, clicks, sampleRate);
+    for (let i = 0; i < carry.length && i < out.length; i++) out[i] += carry[i];
+    carry = out.slice(len);
+    yield toInt16(out.subarray(0, len));
+  }
 }
 
-export function wavBlob(data: Float32Array, sampleRate: number): Blob {
-  const out = new DataView(new ArrayBuffer(44 + data.length * 2));
-  const str = (o: number, s: string) => [...s].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
-  str(0, 'RIFF'); out.setUint32(4, 36 + data.length * 2, true); str(8, 'WAVEfmt ');
-  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
-  out.setUint32(24, sampleRate, true); out.setUint32(28, sampleRate * 2, true);
-  out.setUint16(32, 2, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, data.length * 2, true);
-  data.forEach((s, i) => out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, s)) * 0x7fff, true));
-  return new Blob([out], { type: 'audio/wav' });
+/** Mono 16-bit WAV from rendered chunks. */
+export function wavBlob(chunks: Samples[], sampleRate = SAMPLE_RATE): Blob {
+  const samples = chunks.reduce((n, c) => n + c.length, 0);
+  const head = new DataView(new ArrayBuffer(44));
+  const str = (o: number, t: string) => [...t].forEach((c, k) => head.setUint8(o + k, c.charCodeAt(0)));
+  str(0, 'RIFF'); head.setUint32(4, 36 + samples * 2, true); str(8, 'WAVEfmt ');
+  head.setUint32(16, 16, true); head.setUint16(20, 1, true); head.setUint16(22, 1, true);
+  head.setUint32(24, sampleRate, true); head.setUint32(28, sampleRate * 2, true);
+  head.setUint16(32, 2, true); head.setUint16(34, 16, true); str(36, 'data'); head.setUint32(40, samples * 2, true);
+  return new Blob([head, ...chunks], { type: 'audio/wav' });
+}
+
+export async function renderJob(job: Job, onProgress: (fraction: number) => void = () => {}): Promise<Blob> {
+  const chunks: Samples[] = [];
+  let done = 0;
+  const total = Math.ceil(job.seconds * SAMPLE_RATE);
+  for await (const c of renderChunks(job)) { chunks.push(c); done += c.length; onProgress(done / total); }
+  return wavBlob(chunks);
+}
+
+// shortcut: the WAV is assembled in memory at 2 bytes per sample, about 320 MB per hour of audio; stream to a file if hour-long exports matter.
+export const LONG_EXPORT_SECONDS = 30 * 60;
+
+/** A warning to show before a very long export, or null when it is fine. */
+export function longExportWarning(seconds: number): string | null {
+  if (seconds <= LONG_EXPORT_SECONDS) return null;
+  return `This export is about ${Math.round(seconds / 60)} minutes of audio (roughly ${Math.round((seconds * SAMPLE_RATE * 2) / 1e6)} MB). Phones and small computers may run out of memory. Continue?`;
 }

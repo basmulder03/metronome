@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { concatPcm, Player, renderPcm, SAMPLE_RATE, wavBlob } from '../playback/audio';
+  import { clickEvents, joinJobs, longExportWarning, Player, renderJob } from '../playback/audio';
   import { buildTimeline, countIn } from '../tempo-map/timeline';
   import { entry, lib } from '../library/library.svelte';
   import Button from '../../shared/ui/Button.svelte';
@@ -10,6 +10,7 @@
   let selectedId = $state<string | null>(null);
   let adding = $state('');
   let busy = $state(false);
+  let progress = $state(0);
   let now = $state<{ index: number; title: string; measure: number; total: number; gap: boolean } | null>(null);
   const player = new Player();
   let cancelled = false;
@@ -62,9 +63,10 @@
     if (!sel || !playable.length) return;
     busy = true;
     try {
-      const parts: Float32Array[] = [];
-      for (const r of playable) { const { tl, pre, last } = plan(r); parts.push(await renderPcm(tl, 0, last, { subdivide }, pre)); }
-      const blob = wavBlob(concatPcm(parts, sel.gap), SAMPLE_RATE);
+      const job = joinJobs(playable.map((r) => { const { tl, pre, last } = plan(r); return clickEvents(tl, 0, last, { subdivide }, pre); }), sel.gap);
+      const warning = longExportWarning(job.seconds);
+      if (warning && !confirm(warning)) return;
+      const blob = await renderJob(job, (f) => (progress = f));
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${sel.name}.wav` });
       a.click();
       URL.revokeObjectURL(a.href);
@@ -131,7 +133,7 @@
       </div>
       <div class="row">
         <Button variant="primary" disabled={!playable.length} onclick={() => void play()}>Play playlist</Button>
-        <Button disabled={!playable.length || busy} onclick={() => void exportWav()}>{busy ? 'Rendering…' : 'Export one WAV'}</Button>
+        <Button disabled={!playable.length || busy} onclick={() => void exportWav()}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export one WAV'}</Button>
       </div>
     {/if}
   {/if}
