@@ -23,6 +23,13 @@ export function splitMeasure(p: Piece, index: number, x: number, newId: string):
   const rightW = m.rect.x + m.rect.w - x;
   p.measures.splice(index + 1, 0, { id: newId, page: m.page, rect: { ...m.rect, x, w: rightW } });
   m.rect = { ...m.rect, w: x - m.rect.x };
+  // marks that belong to the end of the measure move to the right half; the rest stay on the left
+  const { repeatEnd, toCoda, fine, jump, volta, ...left } = m.marks ?? {};
+  const right = { repeatEnd, toCoda, fine, jump, volta };
+  const clean = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+  const lm = clean({ ...left, volta }), rm = clean(right);
+  if (Object.keys(lm).length) m.marks = lm; else delete m.marks;
+  if (Object.keys(rm).length) p.measures[index + 1].marks = rm;
   shiftEvents(p, index, 1, false);
   return true;
 }

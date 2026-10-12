@@ -2,6 +2,7 @@
   import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
   import type { Measure, Rect } from '../../shared/types';
   import { app } from '../../shared/store.svelte';
+  import { marksLabel } from '../structure/marks';
   import { insertMeasures, splitMeasure } from './markup';
 
   let { doc, pageNum, zoom, mode }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select' } = $props();
@@ -90,6 +91,8 @@
     if (tp) out.push(`${tp.unit.dotted ? '♩.' : tp.unit.den === 4 ? '♩' : tp.unit.den === 8 ? '♪' : '𝅗𝅥'}=${tp.bpm}`);
     const r = app.piece.ramps.find((x) => x.from === i);
     if (r) out.push(r.endBpm > r.startBpm ? 'accel.' : 'rall.');
+    const mk = marksLabel(app.piece.measures[i]?.marks);
+    if (mk) out.push(mk);
     return out.join(' ');
   };
   const inRamp = (i: number) => app.piece.ramps.some((r) => r.from <= i && i <= r.to);

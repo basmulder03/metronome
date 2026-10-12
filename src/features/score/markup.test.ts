@@ -27,3 +27,11 @@ describe('markup edits', () => {
     expect(p.tempos[0].at).toBe(2);
   });
 });
+
+it('split moves end-of-measure marks to the right half', () => {
+  const p = piece(2);
+  p.measures[0].marks = { repeatStart: true, repeatEnd: 2, volta: [1] };
+  expect(splitMeasure(p, 0, 0.1, 'new')).toBe(true);
+  expect(p.measures[0].marks).toEqual({ repeatStart: true, volta: [1] });
+  expect(p.measures[1].marks).toEqual({ repeatEnd: 2, volta: [1] });
+});
