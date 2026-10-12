@@ -1,6 +1,6 @@
 <script lang="ts">
-  import * as pdfjs from 'pdfjs-dist';
-  import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+  import type { PDFDocumentProxy } from 'pdfjs-dist';
+  import { openPdf } from '../score/pdf';
   import { clickEvents, longExportWarning, Player, renderJob } from '../playback/audio';
   import MeasureStrip from '../score/MeasureStrip.svelte';
   import PdfView from '../score/PdfView.svelte';
@@ -12,12 +12,11 @@
   // A signed-out visitor opening a share link: play, export and look at it with their own PDF; nothing is saved or editable.
   let { title, piece, onsignin }: { title: string; piece: Piece; onsignin: () => void } = $props();
 
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   // svelte-ignore state_referenced_locally -- the guest view is mounted once per shared piece
   app.piece = piece;
   app.selected = -1;
 
-  let doc = $state<pdfjs.PDFDocumentProxy | null>(null);
+  let doc = $state<PDFDocumentProxy | null>(null);
   let pageNum = $state(0);
   let playing = $state(false);
   let busy = $state(false);
@@ -36,7 +35,7 @@
     if (!f) return;
     const bytes = new Uint8Array(await f.arrayBuffer()); // read before resetting the input
     input.value = '';
-    doc = await pdfjs.getDocument({ data: bytes }).promise; // kept in memory only
+    doc = await openPdf(bytes); // kept in memory only
     pageNum = 0;
   }
 

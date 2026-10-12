@@ -10,7 +10,7 @@ const fromStore = (): User | null => {
 
 /** Signed-in user, or null. Stays set while offline: the session only ends on sign-out or when the server rejects it. */
 export const auth = $state({ user: fromStore(), notice: '' });
-pb.authStore.onChange(() => (auth.user = fromStore()));
+pb.authStore.onChange(() => { auth.user = fromStore(); });
 
 /** The server's own plain-language message for a failed request, if it sent one. */
 export const serverMessage = (e: unknown): string => (e instanceof ClientResponseError && typeof e.response?.message === 'string' ? e.response.message : '');

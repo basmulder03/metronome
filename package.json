@@ -13,8 +13,8 @@
     "server:setup": "bash server/setup.sh",
     "server": "server/bin/pocketbase serve --http=127.0.0.1:8090 --dir=server/pb_data --migrationsDir=server/pb_migrations --hooksDir=server/pb_hooks",
     "start": "npm run build && server/bin/pocketbase serve --http=0.0.0.0:8090 --publicDir=dist --dir=server/pb_data --migrationsDir=server/pb_migrations --hooksDir=server/pb_hooks",
-    "predev": "node scripts/copy-ocr-assets.mjs",
-    "prebuild": "node scripts/copy-ocr-assets.mjs"
+    "predev": "node scripts/copy-assets.mjs",
+    "prebuild": "node scripts/copy-assets.mjs"
   },
   "dependencies": {
     "pdfjs-dist": "^6.4.299",

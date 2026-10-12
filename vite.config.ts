@@ -28,12 +28,17 @@ export default defineConfig({
       },
       // everything the app needs, including the pdf.js worker, is precached so it works offline
       workbox: {
-        globPatterns: ['**/*.{js,mjs,css,html,svg,png}'],
-        globIgnores: ['ocr/**'], // 12 MB of OCR engine: not precached, cached the first time someone uses OCR
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,wasm,icc}'],
+        // big optional files are not precached: the OCR engine (12 MB), and pdf.js's fonts and character maps (2.5 MB); they are cached when first used.
+        // The image decoders and colour profiles in pdfjs/wasm and pdfjs/iccs are small and ARE precached, so scanned scores open offline.
+        globIgnores: ['ocr/**', 'pdfjs/standard_fonts/**', 'pdfjs/cmaps/**'],
         maximumFileSizeToCacheInBytes: 3_000_000,
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/, /^\/_\//],
-        runtimeCaching: [{ urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'), handler: 'CacheFirst', options: { cacheName: 'ocr', expiration: { maxEntries: 8 } } }],
+        runtimeCaching: [
+          { urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'), handler: 'CacheFirst', options: { cacheName: 'ocr', expiration: { maxEntries: 8 } } },
+          { urlPattern: ({ url }) => /^\/pdfjs\/(standard_fonts|cmaps)\//.test(url.pathname), handler: 'CacheFirst', options: { cacheName: 'pdfjs-fonts', expiration: { maxEntries: 200 } } },
+        ],
       },
     }),
   ],

@@ -48,7 +48,7 @@ export function bandsAbove(measures: Measure[], page: number): Band[] {
   });
 }
 
-/** Where the OCR engine lives (see scripts/copy-ocr-assets.mjs). */
+/** Where the OCR engine lives (see scripts/copy-assets.mjs). */
 const BASE = '/ocr/';
 
 /**

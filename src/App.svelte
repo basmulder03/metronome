@@ -1,6 +1,6 @@
 <script lang="ts">
-  import * as pdfjs from 'pdfjs-dist';
-  import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+  import type { PDFDocumentProxy } from 'pdfjs-dist';
+  import { openPdf } from './features/score/pdf';
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn } from './features/tempo-map/timeline';
   import { detectMeasures } from './features/score/detect';
@@ -40,9 +40,7 @@
   // svelte-ignore state_referenced_locally
   useUser(userId);
 
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-
-  let doc = $state<pdfjs.PDFDocumentProxy | null>(null);
+  let doc = $state<PDFDocumentProxy | null>(null);
   let pageNum = $state(0);
   let zoom = $state(1);
   let mode = $state<'draw' | 'split' | 'select'>('draw');
@@ -67,7 +65,7 @@
     saveTimer = window.setTimeout(() => void saveCurrent(app.piece), 100);
   });
 
-  const load = async (blob: Blob) => pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  const load = async (blob: Blob) => openPdf(new Uint8Array(await blob.arrayBuffer()));
 
   /** Switch the editor to a library piece (and its PDF, when it has one). */
   async function openEntry(id: string, pdf?: Blob) {
