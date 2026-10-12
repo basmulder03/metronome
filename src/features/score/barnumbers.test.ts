@@ -59,3 +59,38 @@ describe('planFixes', () => {
     expect(planFixes(boxes, [{ measure: 3, n: 7 }])).toEqual({ merge: [], split: [], warnings: [] });
   });
 });
+
+import { barChecks } from './barnumbers';
+import { applySuggestions } from './readmarks';
+
+describe('barChecks', () => {
+  const m = (x: number, w: number, marks?: object) => ({ id: String(x), page: 0, rect: { x, y: 0.1, w, h: 0.05 }, ...(marks && { marks }) });
+  const piece = (measures: unknown[]) => ({ ...emptyPieceLike(), measures: measures as { marks?: { multirest?: number } }[] });
+  it('works out a lone rest from the numbers around it and applying writes it on the box', () => {
+    const measures = [m(0.0, 0.2), m(0.2, 0.2), m(0.4, 0.2), m(0.6, 0.2)]; // bar 1 | rest | bar | printed 8 over the last box
+    const s = barChecks(measures as never, { rests: [1], printed: [{ measure: 3, n: 8 }] });
+    expect(s).toMatchObject([{ kind: 'multirest', measure: 1, bars: 5 }]);
+    expect(s[0].low).toBeFalsy(); // the only unknown in its stretch: pinned down
+    const p = piece(measures);
+    expect(applySuggestions(p as never, s).applied).toBe(1);
+    expect(p.measures[1].marks?.multirest).toBe(5);
+  });
+  it('offers to fold a sliver only where the printed number says a box too many, and unticked', () => {
+    const measures = [m(0.0, 0.2), m(0.2, 0.2), m(0.4, 0.03), m(0.43, 0.2), m(0.63, 0.2)]; // printed 3 over box 3: boxes 0..2 hold only 2 bars
+    const s = barChecks(measures as never, { rests: [], printed: [{ measure: 3, n: 3 }] });
+    expect(s).toMatchObject([{ kind: 'merge', measure: 2, low: true }]);
+    const p = piece(measures);
+    expect(applySuggestions(p as never, s).applied).toBe(1);
+    expect(p.measures).toHaveLength(4);
+  });
+  it('does not touch a stretch that holds a rest it can only guess at', () => {
+    const measures = [m(0.0, 0.2), m(0.2, 0.2), m(0.4, 0.03), m(0.43, 0.2), m(0.63, 0.2), m(0.83, 0.15)];
+    const s = barChecks(measures as never, { rests: [1, 4], printed: [{ measure: 5, n: 9 }] }); // two unknown rests, one number: a guess
+    expect(s.filter((x) => x.kind === 'merge' || x.kind === 'split')).toEqual([]);
+    expect(s.filter((x) => x.kind === 'multirest').every((x) => x.low)).toBe(true);
+  });
+  it('says nothing when the page had no printed numbers and no rests', () => {
+    expect(barChecks([m(0, 0.2), m(0.2, 0.2)] as never, { rests: [], printed: [] })).toEqual([]);
+  });
+});
+function emptyPieceLike() { return { measures: [], meters: [], tempos: [], ramps: [], countIn: 0 }; }

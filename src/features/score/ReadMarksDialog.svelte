@@ -6,12 +6,12 @@
   let dialog: HTMLDialogElement;
   // everything the reader was sure about starts ticked; guesses (rit. end tempos, guessed beat units) start unticked
   // svelte-ignore state_referenced_locally -- the dialog is mounted fresh for each batch of suggestions
-  let ticked = $state(new Set(suggestions.filter((s) => !s.low).map((s) => s.id)));
+  let ticked = $state(new Set(suggestions.filter((s) => !s.low && s.kind !== 'note').map((s) => s.id)));
 
   export function show() { dialog.showModal(); }
 
   const where = (s: Suggestion) => (s.kind === 'ramp' ? `Measures ${s.from + 1}–${s.to + 1}` : `Measure ${s.measure + 1}`);
-  const kind = (s: Suggestion) => ({ meter: 'Time signature', tempo: 'Tempo', ramp: 'Accel./rall.' })[s.kind];
+  const kind = (s: Suggestion) => ({ meter: 'Time signature', tempo: 'Tempo', ramp: 'Accel./rall.', multirest: 'Multi-measure rest', merge: 'False barline', split: 'Missed barline', note: 'Bar numbers' })[s.kind];
   const toggle = (id: string, on: boolean) => { const n = new Set(ticked); on ? n.add(id) : n.delete(id); ticked = n; };
   const chosen = $derived(suggestions.filter((s) => ticked.has(s.id)));
 </script>
@@ -23,7 +23,7 @@
     {#each suggestions as s (s.id)}
       <li>
         <label class="check">
-          <input type="checkbox" checked={ticked.has(s.id)} onchange={(e) => toggle(s.id, e.currentTarget.checked)} />
+          <input type="checkbox" disabled={s.kind === 'note'} checked={ticked.has(s.id)} onchange={(e) => toggle(s.id, e.currentTarget.checked)} />
           <span class="what"><strong>{where(s)}</strong> · {kind(s)}: {s.text}{#if s.low} <em class="warn">check</em>{/if}</span>
         </label>
       </li>

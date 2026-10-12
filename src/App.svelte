@@ -17,6 +17,7 @@
   import { applySuggestions, suggestFromText, type PageText, type Suggestion } from './features/score/readmarks';
   import { readPageText } from './features/score/textlayer';
   import { ocrPages } from './features/score/ocr';
+  import { barChecks } from './features/score/barnumbers';
   import PdfView from './features/score/PdfView.svelte';
   import { codeFromHash, decodeShare } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
@@ -375,10 +376,10 @@
     ocrOffer = false;
     status = 'Loading the OCR engine (first time only)…';
     try {
-      const texts = await ocrPages(doc, app.piece.measures, (d, t) => (status = `Reading the page text… ${d}/${t}`));
-      const s = suggestFromText(texts, app.piece);
+      const { texts, signals } = await ocrPages(doc, app.piece.measures, (d, t) => (status = `Reading the page text… ${d}/${t}`));
+      const s = [...suggestFromText(texts, app.piece), ...barChecks(app.piece.measures, signals)];
       if (s.length) showFound(s);
-      else status = 'OCR found no tempo marks or rit./accel. words. Set them in the editor.';
+      else status = 'OCR found no tempo marks, rit./accel. words or bar-number problems. Set them in the editor.';
     } catch {
       status = 'OCR could not run (is the connection down on the first use?). Set tempos in the editor.';
     }

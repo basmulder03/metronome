@@ -47,6 +47,9 @@ no file field at all, so a score cannot be uploaded even by a hand-made request.
   this for one gesture, or switch it off in Options. **Tidy row** (`T`) evens out a whole row at once: same top and height,
   small gaps and overlaps between bars closed.
 - Every edit can be undone with Ctrl+Z (a whole drag is one step).
+- **Settings for a measure:** pick a box and its settings (time signature, tempo, accel./rall., parts, rests, repeats and
+  endings) open in a card, in the corner on a desktop and as a bottom sheet on a phone. Each group can be folded away. The card
+  hides while you draw or split, and closes with its ✕ or when you press Esc.
 - **Keyboard** (press `?` in the app for the list): ← → select a measure, Delete removes the box, Alt+arrows move it,
   Alt+Shift+arrows resize it, `,` and `.` move the barline after it (hold Shift for bigger steps), `M` merges with the next
   measure, `D`/`S`/`V` switch mode, Space plays or stops, Esc deselects, F2 renames. Shortcuts pause while you type in a field
@@ -59,10 +62,17 @@ no file field at all, so a score cannot be uploaded even by a hand-made request.
   (1-2-3, then the upbeat is "4"). Auto-detect suggests an upbeat when the first box is much narrower than the rest.
 - **Multi-measure rests:** give the box the number of bars it stands for. The click runs for all of them, and boxes then show
   the printed bar numbers (a four-bar rest box reads *2–5*, the next one *6*).
-- **Several parts on one sheet** (movements, sections): mark where each part starts and name it. In Options choose what happens
+- **Repeats with endings:** *Plays on pass* has a tick box for the 1st to 4th pass, so a bar can be "1st and 2nd". *Bars in this
+  ending* applies the choice to that many bars from the selected one, which is how a bracket over several bars is written.
+- **Several parts on one sheet** (movements, sections): mark where each part starts and name it. A part can *start the bar
+  numbers again at 1*. A piece (or a restarting part) that opens with an upbeat prints that bar as **0**, so the first full bar is 1. In Options choose what happens
   at the end of a part: *Keep playing* or *Stop and wait*. A part can also be flagged to always stop after it. When playback
   stops, the next part is selected, so Space continues with a fresh count-in. Use the part picker next to the title to jump to
   a part, and *Export this part* to get one part as its own audio file. Repeats inside a part do not end it.
+- **Share view:** *See share view* in the title bar shows the piece the way a share link opens it, without your PDF. A
+  multi-measure rest is then written out bar by bar, because another player's part has other rests.
+- **Moving a library:** in the Library, *Export all* saves the markup of every piece as one file (never a PDF) and *Import file*
+  adds the pieces from such a file. That is how markup made on a test server is moved to the real one.
 - **Saving:** everything is saved automatically as you work (the title bar shows the state). Ctrl+S saves right now and syncs
   to your account, instead of the browser's *Save page* dialog.
 
@@ -138,9 +148,14 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
 
 ## Known limits
 
+- **Bar numbers check the boxes.** Reading a scan with OCR also looks for thick multi-measure rest bars and for the boxed
+  rehearsal numbers printed over the systems. Between two such numbers the bars must add up: that gives the length of a rest,
+  and flags boxes that are probably false splits (a stem taken for a barline, offered as *merge*), a barline that was missed
+  (*split*) or a stretch that cannot be explained (a note, never changed). Tempo words with no mark (Allegro, Andante...) are
+  suggested with their usual speed. Everything is a suggestion you tick first.
 - **Reading the score is best effort.** "Read from PDF" uses the PDF's own text layer when there is one (exact: tempo marks,
-  time signatures, rit./accel. words) and OCR for scans (tempo marks and rit./accel. words only; OCR cannot read music-font
-  time signatures). Everything is a suggestion you review first, and the end tempo of a rit./accel. is always a guess.
+  time signatures, rit./accel. words) and OCR for scans (tempo marks, rit./accel. words, rests and bar numbers; OCR cannot read the note glyph in a tempo mark, so the beat unit is a
+  guess, and it cannot read music-font time signatures). Everything is a suggestion you review first, and the end tempo of a rit./accel. is always a guess.
   Barline detection is classical image processing and will miss on dense, skewed or handwritten scores.
 - **Repeat signs, voltas and fermatas are not read from the page**; mark them in the editor.
 - **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.

@@ -1,5 +1,7 @@
 import type { Measure } from '../../shared/types';
-import type { TextItem } from './readmarks';
+import { barsIn } from '../structure/bars';
+import { partsOf } from '../structure/parts';
+import type { Suggestion, TextItem } from './readmarks';
 
 /** A bar number printed above a measure box (a rehearsal mark such as [24]), read from the page. */
 export type Printed = { measure: number; n: number };
@@ -11,6 +13,8 @@ export type Solved = {
   counts: Map<number, number>;
   /** Printed numbers that the boxes cannot reach: where a written number disagrees with how the bars add up. */
   conflicts: { measure: number; printed: number; ours: number }[];
+  /** Rests whose count is pinned down by the numbers around them (the only unknown in their stretch); the others are guesses. */
+  certain: Set<number>;
 };
 
 /**
@@ -23,6 +27,7 @@ export function solveRests(measureCount: number, rests: RestBox[], anchors: Prin
   const guess = new Map(rests.map((r) => [r.measure, r.guess]));
   const counts = new Map<number, number>();
   const conflicts: Solved['conflicts'] = [];
+  const certain = new Set<number>();
   // keep anchors in reading order whose numbers keep growing (a misread digit breaks the run)
   const sorted = [...anchors].sort((a, b) => a.measure - b.measure);
   const good: Printed[] = [{ measure: 0, n: first }];
@@ -45,7 +50,7 @@ export function solveRests(measureCount: number, rests: RestBox[], anchors: Prin
     const total = end - start;
     const plain = to - from - inside.length;
     const have = known.reduce((s, r) => s + guess.get(r.measure)!, 0);
-    if (unknown.length === 1) counts.set(unknown[0].measure, Math.max(2, total - plain - have));
+    if (unknown.length === 1) { counts.set(unknown[0].measure, Math.max(2, total - plain - have)); certain.add(unknown[0].measure); }
     else for (const r of unknown) counts.set(r.measure, 2); // shortcut: several unknown rests in one stretch are guessed as two bars each
     const ours = start + plain + inside.reduce((s, r) => s + counts.get(r.measure)!, 0);
     if (ours !== end) {
@@ -55,7 +60,7 @@ export function solveRests(measureCount: number, rests: RestBox[], anchors: Prin
       else conflicts.push({ measure: to, printed: end, ours });
     }
   }
-  return { counts, conflicts };
+  return { counts, conflicts, certain };
 }
 
 const isBoxed = (it: TextItem) => /^\d{1,3}$/.test(it.str.trim());
@@ -96,15 +101,17 @@ const median = (a: number[]) => [...a].sort((p, q) => p - q)[Math.floor(a.length
  * Compare the boxes with the printed bar numbers and propose fixes. Between two printed numbers the bars must add up. A box
  * too many is nearly always a sliver (a stem taken for a barline): the narrowest slivers are folded into their neighbour. A box too
  * few is a missed barline: the widest ordinary boxes are cut in two. Anything else is reported, never guessed.
- * `anchors` are indices into `boxes`; the first box counts from `first`.
+ * `anchors` are indices into `boxes`; the first box counts from `first`. Stretches that contain a box in `unsure` (a rest whose
+ * length is only a guess) are left alone.
  */
-export function planFixes(boxes: PlanBox[], anchors: Printed[], first = 1, keep: ReadonlySet<number> = new Set()): Plan {
+export function planFixes(boxes: PlanBox[], anchors: Printed[], first = 1, keep: ReadonlySet<number> = new Set(), unsure: ReadonlySet<number> = new Set()): Plan {
   const plan: Plan = { merge: [], split: [], warnings: [] };
   const typical = median(boxes.filter((b) => b.bars === 1).map((b) => b.w));
   const marks = [{ measure: 0, n: first }, ...[...anchors].sort((a, b) => a.measure - b.measure).filter((a) => a.measure > 0), { measure: boxes.length, n: NaN }];
   for (let k = 0; k + 1 < marks.length; k++) {
     const { measure: from, n: start } = marks[k], { measure: to, n: end } = marks[k + 1];
     if (Number.isNaN(end) || end <= start) continue;
+    if ([...unsure].some((i) => i >= from && i < to)) continue; // a guessed rest makes the sum meaningless
     const have = boxes.slice(from, to).reduce((s, b) => s + b.bars, 0);
     const need = end - start;
     if (have === need) continue;
@@ -130,4 +137,54 @@ export function planFixes(boxes: PlanBox[], anchors: Printed[], first = 1, keep:
     }
   }
   return plan;
+}
+
+/** What reading a scanned page found that bears on bar numbers: the boxes that hold a thick rest bar, and the numbers printed over boxes. */
+export type Signals = { rests: number[]; printed: Printed[]; /** Boxes that are all but empty: a narrow one of these is a whole-bar rest, not a false split. */ quiet?: number[] };
+
+/**
+ * Turn the printed bar numbers into suggestions: how many bars each multi-measure rest stands for, which boxes are false splits or
+ * hold two bars, and where the boxes and the numbers disagree in a way no safe fix explains (a note, never applied).
+ * Parts that restart the count are checked on their own.
+ */
+export function barChecks(measures: Measure[], signals: Signals): Suggestion[] {
+  const out: Suggestion[] = [];
+  type Draft = Suggestion extends infer S ? (S extends { kind: 'multirest' | 'merge' | 'split' | 'note' } ? Omit<S, 'id'> : never) : never;
+  const add = (s: Draft) => out.push({ ...s, id: `check-${out.length}` } as Suggestion);
+  const parts = partsOf(measures);
+  const spans: [number, number][] = parts.length ? parts.map((p) => [p.start, p.end]) : [[0, measures.length - 1]];
+  const isRest = new Set(signals.rests);
+  for (const [a, z] of spans) {
+    if (z < a) continue;
+    const n = z - a + 1;
+    const first = measures[a].marks?.pickup && (a === 0 || measures[a].marks?.part?.restart) ? 0 : 1;
+    const anchors = signals.printed.filter((p) => p.measure >= a && p.measure <= z).map((p) => ({ measure: p.measure - a, n: p.n }));
+    if (!anchors.length && !signals.rests.some((m) => m >= a && m <= z)) continue;
+
+    // rests: those already written down keep their bars; the others are worked out from the numbers around them
+    const rests: RestBox[] = [];
+    for (let m = a; m <= z; m++) {
+      const written = measures[m].marks?.multirest;
+      if (written && written > 1) rests.push({ measure: m - a, guess: written });
+      else if (isRest.has(m)) rests.push({ measure: m - a });
+    }
+    // A stretch with an unknown rest in it cannot be checked box by box: the rest takes up the difference. So only stretches whose
+    // rests are all known are held against the numbers; a narrow box is a false split only where the count says one must be.
+    const quiet = new Set(signals.quiet ?? []);
+    const solved = solveRests(n, rests, anchors, first);
+    for (const r of rests) {
+      const bars = solved.counts.get(r.measure);
+      if (r.guess === undefined && bars && bars > 1) add({ kind: 'multirest', measure: a + r.measure, bars, text: `${bars} bars of rest`, low: !solved.certain.has(r.measure) });
+    }
+    const boxes: PlanBox[] = measures.slice(a, z + 1).map((m, i) => ({ x: m.rect.x, y: m.rect.y, w: m.rect.w, bars: solved.counts.get(i) ?? barsIn(m) }));
+    const keep = new Set(measures.slice(a, z + 1).flatMap((_, i) => (quiet.has(a + i) ? [i] : [])));
+    const kept = boxes.map((_, i) => ({ i }));
+    const remap = new Map(kept.map(({ i }) => [i, i]));
+    const unsure = new Set(rests.filter((r) => r.guess === undefined && !solved.certain.has(r.measure)).map((r) => r.measure));
+    const plan = planFixes(boxes, anchors.map((p) => ({ ...p, measure: remap.get(p.measure)! })), first, keep, unsure);
+    for (const j of plan.merge) add({ kind: 'merge', measure: a + kept[j].i, text: 'a narrow box that is probably part of the bar before it', low: true });
+    for (const j of plan.split) add({ kind: 'split', measure: a + kept[j].i, text: 'a wide box that probably holds two bars', low: true });
+    for (const w of plan.warnings) add({ kind: 'note', measure: a + kept[w.from].i, text: `the printed numbers expect ${w.need} bars from here to box ${a + (kept[Math.min(w.to, kept.length) - 1]?.i ?? 0) + 1}, the boxes make ${w.have}: check for a missing or extra box` });
+  }
+  return out;
 }

@@ -70,3 +70,28 @@ export function restBar(b: Bitmap, rect: Rect): { x0: number; x1: number; staffT
 }
 
 export const hasRestBar = (b: Bitmap, rect: Rect) => restBar(b, rect) !== null;
+
+/**
+ * Is this box all but empty (a whole-bar rest, or nothing at all)? Such a box is narrow for a good reason, so a narrow one
+ * that is quiet is not a false split. Staff lines and their soft edges do not count as ink.
+ */
+export function isQuiet(b: Bitmap, rect: Rect): boolean {
+  const x0 = Math.round(rect.x * b.width), x1 = Math.round((rect.x + rect.w) * b.width) - 1;
+  const y0 = Math.round(rect.y * b.height), y1 = Math.round((rect.y + rect.h) * b.height) - 1;
+  const sp = (y1 - y0 + 1) / 7;
+  const top = Math.round(y0 + 1.5 * sp), bottom = Math.round(y1 - 1.5 * sp);
+  const width = x1 - x0 + 1;
+  if (width < 4 || bottom - top < sp * 3) return false;
+  const lineRow = new Set<number>();
+  for (let y = top; y <= bottom; y++) {
+    let n = 0;
+    for (let x = x0; x <= x1; x++) if (dark(b, x, y)) n++;
+    if (n / width > 0.3) for (let d = -2; d <= 2; d++) lineRow.add(y + d);
+  }
+  let ink = 0, cells = 0;
+  for (let y = top; y <= bottom; y++) {
+    if (lineRow.has(y)) continue;
+    for (let x = x0 + 2; x <= x1 - 2; x++) { cells++; if (dark(b, x, y)) ink++; }
+  }
+  return cells > 0 && ink / cells < 0.06;
+}

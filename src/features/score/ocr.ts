@@ -1,6 +1,9 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { Measure } from '../../shared/types';
+import type { Printed, Signals } from './barnumbers';
 import type { PageText, TextItem } from './readmarks';
+import { findBoxedNumbers } from './rehearsal';
+import { isQuiet, restBar } from './restbars';
 
 /** A recognised word in pixels of the image it came from. */
 export type Word = { text: string; x0: number; y0: number; x1: number; y1: number; confidence: number };
@@ -78,14 +81,15 @@ const BASE = '/ocr/';
 
 /**
  * Read text above each system with OCR, for scanned PDFs that have no text layer.
- * Finds tempo marks and rit./accel. words; time signatures are music-font digits that OCR cannot read.
+ * Finds tempo marks and rit./accel. words; time signatures are music-font digits that OCR cannot read. The same pass also looks for
+ * multi-measure rest bars and reads the boxed rehearsal numbers, which are bar numbers (see barnumbers.ts).
  * The engine (about 7 MB) is downloaded and cached the first time this runs.
  */
 export async function ocrPages(
   doc: PDFDocumentProxy,
   measures: Measure[],
   onProgress: (done: number, total: number) => void,
-): Promise<PageText[]> {
+): Promise<{ texts: PageText[]; signals: Signals }> {
   const pages = [...new Set(measures.map((m) => m.page))].sort((a, b) => a - b);
   const jobs = pages.map((p) => ({ p, bands: bandsAbove(measures, p) }));
   const total = jobs.reduce((n, j) => n + stripsFor(j.bands).length, 0);
@@ -93,6 +97,7 @@ export async function ocrPages(
   const worker = await createWorker('eng', 1, { workerPath: `${BASE}worker.min.js`, corePath: BASE, langPath: BASE, gzip: true, workerBlobURL: false });
   await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: '1' });
   const result: PageText[] = [];
+  const signals: Signals = { rests: [], printed: [], quiet: [] };
   let done = 0;
   try {
     for (const { p, bands } of jobs) {
@@ -119,9 +124,45 @@ export async function ocrPages(
         onProgress(++done, total);
       }
       result.push({ page: p, width, height, items });
+
+      // bar numbers: thick rest bars, empty boxes, and the numbers in the boxes printed over the systems
+      const own = measures.flatMap((m, i) => (m.page === p ? [{ m, i }] : []));
+      const bitmap = full.getContext('2d')!.getImageData(0, 0, full.width, full.height);
+      own.forEach(({ m, i }) => { if (restBar(bitmap, m.rect)) signals.rests.push(i); else if (isQuiet(bitmap, m.rect)) signals.quiet!.push(i); });
+      const boxed = findBoxedNumbers(bitmap, own.map((o) => o.m.rect));
+      if (boxed.length) {
+        await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_WORD, tessedit_char_whitelist: '0123456789' });
+        for (const b of boxed) {
+          const inset = Math.max(3, Math.round(b.h * 0.12));
+          const w = b.w - 2 * inset, h = b.h - 2 * inset, pad = 12, up = 3;
+          if (w < 4 || h < 4) continue;
+          const crop = document.createElement('canvas');
+          crop.width = w * up + 2 * pad;
+          crop.height = h * up + 2 * pad;
+          const g = crop.getContext('2d')!;
+          g.fillStyle = 'white'; // paper for the OCR, not a theme colour
+          g.fillRect(0, 0, crop.width, crop.height);
+          g.drawImage(full, b.x + inset, b.y + inset, w, h, pad, pad, w * up, h * up);
+          const text = (await worker.recognize(crop)).data.text.trim();
+          if (!/^\d{1,4}$/.test(text)) continue;
+          // the engine sometimes reads the box's own border as a leading 1: "1106" is 106
+          const n = text.length === 4 && text[0] === '1' ? +text.slice(1) : +text;
+          // the mark belongs to the box it sits over: the nearest one below it, by its left edge
+          const fx = b.x / full.width, fy = b.y / full.height;
+          let best = -1, cost = 0.08;
+          for (const { m, i } of own) {
+            const dy = m.rect.y - fy;
+            if (dy < 0 || dy > 0.1) continue;
+            const c = Math.abs(m.rect.x - fx) + dy * 0.3;
+            if (c < cost) { cost = c; best = i; }
+          }
+          if (best >= 0 && n > 0) signals.printed.push({ measure: best, n } as Printed);
+        }
+        await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, tessedit_char_whitelist: '' });
+      }
     }
   } finally {
     await worker.terminate();
   }
-  return result;
+  return { texts: result, signals };
 }

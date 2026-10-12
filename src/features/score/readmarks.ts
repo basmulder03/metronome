@@ -2,6 +2,8 @@ import type { Measure, Piece, Unit } from '../../shared/types';
 import { DEFAULT_BPM } from '../../shared/types';
 import { defaultGrouping } from '../tempo-map/timeline';
 import { tempoByName } from './tempoNames';
+import { setMark } from '../structure/marks';
+import { mergeMeasures, splitMeasure } from './markup';
 
 /** A run of text from a PDF page, in PDF points with the origin at the page's top-left (y is the baseline). */
 export type TextItem = { str: string; x: number; y: number; w: number; size: number };
@@ -11,6 +13,11 @@ export type Suggestion = { id: string; text: string; low?: boolean } & (
   | { kind: 'meter'; measure: number; num: number; den: number }
   | { kind: 'tempo'; measure: number; bpm: number; unit: Unit }
   | { kind: 'ramp'; from: number; to: number; startBpm: number; endBpm: number }
+  // from the printed bar numbers (see barcheck.ts)
+  | { kind: 'multirest'; measure: number; bars: number }
+  | { kind: 'merge'; measure: number } // this box and the one before it are one bar: a stem was taken for a barline
+  | { kind: 'split'; measure: number } // this box holds two bars: a barline was missed
+  | { kind: 'note'; measure: number }
 );
 
 const DENS = [1, 2, 4, 8, 16, 32];
@@ -213,11 +220,23 @@ export function applySuggestions(piece: Piece, chosen: Suggestion[]): { applied:
     } else if (s.kind === 'tempo') {
       if (piece.tempos.some((e) => e.at === s.measure)) { skipped++; continue; }
       piece.tempos.push({ at: s.measure, bpm: s.bpm, unit: { ...s.unit } });
-    } else {
+    } else if (s.kind === 'ramp') {
       if (piece.ramps.some((r) => r.from <= s.to && s.from <= r.to)) { skipped++; continue; }
       piece.ramps.push({ from: s.from, to: s.to, startBpm: s.startBpm, endBpm: s.endBpm, curve: [0.42, 0, 0.58, 1] });
-    }
+    } else if (s.kind === 'multirest') {
+      const m = piece.measures[s.measure];
+      if (!m || m.marks?.multirest) { skipped++; continue; }
+      setMark(m, 'multirest', s.bars);
+    } else continue; // merge, split and note are handled below or are only information
     applied++;
+  }
+  // Boxes change last, from the end of the piece backwards, so that the numbers of the boxes still to do do not move.
+  const shape = chosen.filter((s): s is Extract<Suggestion, { kind: 'merge' | 'split' }> => s.kind === 'merge' || s.kind === 'split').sort((a, b) => b.measure - a.measure);
+  for (const s of shape) {
+    const m = piece.measures[s.measure];
+    if (!m) { skipped++; continue; }
+    const done = s.kind === 'merge' ? s.measure > 0 && mergeMeasures(piece, s.measure - 1) : splitMeasure(piece, s.measure, m.rect.x + m.rect.w / 2, crypto.randomUUID());
+    if (done) applied++; else skipped++;
   }
   return { applied, skipped };
 }
