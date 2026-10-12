@@ -16,6 +16,10 @@ export type Marks = {
   fine?: boolean;
   toCoda?: boolean;
   jump?: 'dc' | 'ds';
+  /** Pickup measure: only the last N beats (in 1/den units) of the meter are present. */
+  pickup?: number;
+  /** Hold one beat (0-based unit index in the full meter) for `factor` times its length. */
+  fermata?: { beat: number; factor: number };
 };
 
 /** Array order is the written order; use `unroll` for the playing order. */
@@ -37,9 +41,11 @@ export type Piece = {
   meters: MeterEvent[];
   tempos: TempoEvent[];
   ramps: Ramp[];
+  /** Bars of click before playback and in exports (0 = none). */
+  countIn?: number;
 };
 
-export const emptyPiece = (): Piece => ({ measures: [], meters: [], tempos: [], ramps: [] });
+export const emptyPiece = (): Piece => ({ measures: [], meters: [], tempos: [], ramps: [], countIn: 0 });
 
 export const DEFAULT_METER: Meter = { num: 4, den: 4, grouping: [1, 1, 1, 1] };
 export const DEFAULT_UNIT: Unit = { den: 4, dotted: false };

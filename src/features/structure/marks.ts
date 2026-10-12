@@ -20,5 +20,7 @@ export function marksLabel(k?: Marks): string {
   if (k.toCoda) out.push('to coda');
   if (k.fine) out.push('fine');
   if (k.jump) out.push(k.jump === 'dc' ? 'D.C.' : 'D.S.');
+  if (k.pickup) out.push(`pickup ${k.pickup}`);
+  if (k.fermata) out.push('fermata');
   return out.join(' ');
 }

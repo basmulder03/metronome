@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece, type Piece } from '../../shared/types';
-import { buildTimeline, ease, parseGrouping } from './timeline';
+import { buildTimeline, countIn, ease, parseGrouping } from './timeline';
 
 const piece = (n: number): Piece => {
   const p = emptyPiece();
@@ -71,4 +71,42 @@ it('a repeated section plays (and sounds) twice', () => {
   expect(tl.steps.map((s) => s.measure)).toEqual([0, 1, 0, 1]);
   expect(tl.duration).toBeCloseTo(8);
   expect(tl.beats.at(-1)!.step).toBe(3);
+});
+
+describe('pickup, fermata and count-in', () => {
+  it('a pickup of 1 beat in 4/4 is one beat long and is not a downbeat', () => {
+    const p = piece(2);
+    p.tempos.push({ at: 0, bpm: 120, unit: q });
+    p.measures[0].marks = { pickup: 1 };
+    const tl = buildTimeline(p);
+    expect(tl.steps[1].time).toBeCloseTo(0.5);
+    expect(tl.beats[0]).toMatchObject({ measure: 0, accent: 1 }); // beat 4 of the bar: a beat accent, not the downbeat (2)
+    expect(tl.duration).toBeCloseTo(0.5 + 2);
+  });
+
+  it('a 6/8 pickup of 3 eighths keeps the second group accent', () => {
+    const p = piece(2);
+    p.meters.push({ at: 0, meter: { num: 6, den: 8, grouping: [3, 3] } });
+    p.measures[0].marks = { pickup: 3 };
+    expect(buildTimeline(p).beats.slice(0, 3).map((b) => b.accent)).toEqual([1, 0, 0]);
+  });
+
+  it('a fermata stretches one beat', () => {
+    const p = piece(1);
+    p.tempos.push({ at: 0, bpm: 120, unit: q });
+    p.measures[0].marks = { fermata: { beat: 3, factor: 3 } };
+    expect(buildTimeline(p).duration).toBeCloseTo(0.5 * 3 + 1.5);
+  });
+
+  it('count-in repeats the first bar before the start, group starts only matter to the player', () => {
+    const p = piece(2);
+    p.tempos.push({ at: 0, bpm: 120, unit: q });
+    const tl = buildTimeline(p);
+    const pre = countIn(p, tl, 0, 2);
+    expect(pre).toHaveLength(8);
+    expect(pre[0].time).toBeCloseTo(-4);
+    expect(pre.at(-1)!.time).toBeCloseTo(-0.5);
+    expect(pre.map((b) => b.accent).slice(0, 4)).toEqual([2, 1, 1, 1]);
+    expect(countIn(p, tl, 0, 0)).toEqual([]);
+  });
 });

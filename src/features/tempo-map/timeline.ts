@@ -37,6 +37,25 @@ export function ease(c: Curve, p: number): number {
 const last = <T extends { at: number }>(list: T[], m: number) =>
   list.filter((e) => e.at <= m).reduce<T | undefined>((a, e) => (!a || e.at >= a.at ? e : a), undefined);
 
+/** Accent for each beat position of a meter. */
+export function accentsOf(mt: Meter): (0 | 1 | 2)[] {
+  const starts = new Set(mt.grouping.reduce<number[]>((a, g) => [...a, (a.at(-1) ?? 0) + g], [0]));
+  return Array.from({ length: mt.num }, (_, k) => (k === 0 ? 2 : starts.has(k) ? 1 : 0));
+}
+
+/** Count-in clicks as beats with times relative to beat i0 (negative), using that measure's meter and first beat length. */
+export function countIn(p: Piece, tl: Timeline, i0: number, bars: number): Beat[] {
+  const b0 = tl.beats[i0];
+  if (!b0 || bars <= 0) return [];
+  const mt = meterAt(p, b0.measure);
+  const next = tl.beats[i0 + 1];
+  const unit = next ? next.time - b0.time : 0.6;
+  const accents = accentsOf(mt);
+  const out: Beat[] = [];
+  for (let i = 0; i < bars * mt.num; i++) out.push({ time: -(bars * mt.num - i) * unit, measure: b0.measure, step: -1, accent: accents[i % mt.num] });
+  return out;
+}
+
 export const meterAt = (p: Piece, m: number): Meter => last(p.meters, m)?.meter ?? DEFAULT_METER;
 
 /** The tempo event in force at measure m (ramps do not count). */
@@ -47,7 +66,8 @@ const SUBSTEPS = 16;
 export function buildTimeline(p: Piece): Timeline {
   const n = p.measures.length;
   const meters = Array.from({ length: n }, (_, m) => meterAt(p, m));
-  const lenQ = meters.map((mt) => (mt.num * 4) / mt.den);
+  const present = (m: number) => Math.min(meters[m].num, Math.max(1, p.measures[m].marks?.pickup ?? meters[m].num));
+  const lenQ = meters.map((mt, m) => (present(m) * 4) / mt.den);
   const startQ: number[] = [];
   lenQ.reduce((acc, l, m) => ((startQ[m] = acc), acc + l), 0);
 
@@ -75,14 +95,18 @@ export function buildTimeline(p: Piece): Timeline {
   let time = 0;
   for (const [s, m] of unroll(p.measures).entries()) {
     steps.push({ measure: m, time });
-    const { num, den, grouping } = meters[m];
+    const { num, den } = meters[m];
     const step = 4 / den;
-    const groupStarts = new Set(grouping.reduce<number[]>((a, g) => [...a, (a.at(-1) ?? 0) + g], [0]));
-    for (let k = 0; k < num; k++) {
-      beats.push({ time, measure: m, step: s, accent: k === 0 ? 2 : groupStarts.has(k) ? 1 : 0 });
+    const accents = accentsOf(meters[m]);
+    const first = num - present(m); // a pickup measure sounds only the last beats of the meter
+    const fermata = p.measures[m].marks?.fermata;
+    for (let k = first; k < num; k++) {
+      beats.push({ time, measure: m, step: s, accent: accents[k] });
       // midpoint rule over the step: 60/qpm integrated across the quarter-note span
       const h = step / SUBSTEPS;
-      for (let s = 0; s < SUBSTEPS; s++) time += (60 / qpmAt(m, startQ[m] + k * step + (s + 0.5) * h)) * h;
+      let dt = 0;
+      for (let j = 0; j < SUBSTEPS; j++) dt += (60 / qpmAt(m, startQ[m] + (k - first) * step + (j + 0.5) * h)) * h;
+      time += fermata?.beat === k ? dt * Math.max(1, fermata.factor) : dt;
     }
   }
   return { beats, steps, measureCount: n, duration: time };
