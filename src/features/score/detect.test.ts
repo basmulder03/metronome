@@ -121,3 +121,16 @@ describe('fast beamed music and scanned pages', () => {
     expect(detectMeasures(b)).toHaveLength(4);
   });
 });
+
+it('finds a system whose lines are much shorter or fainter than the page strongest', () => {
+  const W = 800, H = 500;
+  const data = new Uint8ClampedArray(W * H * 4).fill(255);
+  const set = (x: number, y: number) => { const i = (y * W + x) * 4; data[i] = data[i + 1] = data[i + 2] = 0; };
+  for (let l = 0; l < 5; l++) for (let x = 20; x <= 780; x++) set(x, 100 + l * 8);
+  for (const bx of [20, 400, 780]) for (let y = 100; y <= 132; y++) set(bx, y);
+  for (let l = 0; l < 5; l++) for (let x = 20; x <= 300; x++) set(x, 300 + l * 8); // under 40% of the width: below the page-wide threshold
+  for (const bx of [20, 160, 300]) for (let y = 300; y <= 332; y++) set(bx, y);
+  const r = detectMeasures({ data, width: W, height: H });
+  expect(r).toHaveLength(4);
+  expect(r[3].y).toBeGreaterThan(r[0].y); // in reading order: the lower system comes last
+});

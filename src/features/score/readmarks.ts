@@ -75,7 +75,8 @@ const compound = (num: number, den: number) => den >= 8 && num > 3 && num % 3 ==
 
 function noteUnit(glyph: string | undefined, num: number, den: number): { unit: Unit; guess: boolean } {
   const g = glyph?.trim() ?? '';
-  const base = [...g].map((c) => NOTE[c]).find(Boolean);
+  // a word glued to the mark ("Meno=56") is not a glyph: its letters must not be taken for music-font note letters
+  const base = /\p{L}{3}/u.test(g) ? undefined : [...g].map((c) => NOTE[c]).find(Boolean);
   if (base) return { unit: { den: base, dotted: DOT.test(g) }, guess: false };
   return { unit: compound(num, den) ? { den: 4, dotted: true } : { den: 4, dotted: false }, guess: true };
 }
@@ -104,7 +105,7 @@ export function suggestFromText(pages: PageText[], piece: Pick<Piece, 'measures'
     // tempo marks: "= 130", with the note glyph just before it (as its own item or inside the same string)
     for (const it of p.items) {
       // "♩ = 130" anywhere in the run (OCR can glue neighbouring text to it); the glyph is whatever is just before the "="
-      const t = /^(?:.*\s)?(\S{0,3})\s*=\s*(\d{2,3})(?:\s*[-–]\s*\d{2,3})?[)\]]?(?:\s.*)?$/.exec(it.str);
+      const t = /^(?:.*?)(\S{0,3})\s*=\s*(\d{2,3})(?:\s*[-–]\s*\d{2,3})?[)\]]?(?:\s.*)?$/.exec(it.str); // lazy prefix: OCR often glues a word to the mark ("Meno=56)")
       if (!t) continue;
       const bpm = +t[2];
       if (bpm < 20 || bpm > 400) continue;

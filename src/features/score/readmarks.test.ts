@@ -174,3 +174,11 @@ describe('tempo words', () => {
     expect(s.filter((x) => x.kind === 'tempo')).toMatchObject([{ bpm: 63 }]);
   });
 });
+
+describe('tempo marks with a word glued to them', () => {
+  const ms = [{ id: 'a', page: 0, rect: { x: 0.05, y: 0.3, w: 0.9, h: 0.1 } }];
+  it('reads "Meno=56)" as 56', () => {
+    const s = suggestFromText([{ page: 0, width: 600, height: 800, items: [{ str: 'Meno=56)', x: 40, y: 200, w: 60, size: 12 }] }], { measures: ms, tempos: [], meters: [] });
+    expect(s).toMatchObject([{ kind: 'tempo', bpm: 56 }]);
+  });
+});

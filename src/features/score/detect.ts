@@ -97,6 +97,29 @@ function isBarline(b: Bitmap, [x0, x1]: [number, number], staves: [number, numbe
  * Heuristic: expect misses on dense scores (hand-written, skewed, overlapping notation); the editor is where those get fixed.
  */
 export function detectMeasures(original: Bitmap): Rect[] {
+  const rows = detectRows(original);
+  // A system can be lost because its lines are fainter than the page's strongest (the last row of a scan, say). Look again in every
+  // stretch between and below the rows found that is tall enough to hold one, with that stretch's own strongest line as the yardstick.
+  const H = original.height, W = original.width;
+  const sp = rows.length ? (rows[0][0].h * H) / 7 : 0;
+  if (sp > 0) {
+    const bands = rows.map((r) => [r[0].y * H, (r[0].y + r[0].h) * H]).sort((p, q) => p[0] - q[0]);
+    const gaps: [number, number][] = [];
+    let at = 0;
+    for (const [a, z] of bands) { if (a - at > sp * 9) gaps.push([at, a]); at = Math.max(at, z); }
+    if (H - at > sp * 9) gaps.push([at, H]);
+    for (const [g0, g1] of gaps) {
+      const y0 = Math.floor(g0), y1 = Math.ceil(g1);
+      const part: Bitmap = { data: original.data.subarray(y0 * W * 4, y1 * W * 4), width: W, height: y1 - y0 };
+      for (const row of detectRows(part)) rows.push(row.map((r) => ({ x: r.x, w: r.w, h: (r.h * (y1 - y0)) / H, y: (r.y * (y1 - y0) + y0) / H })));
+    }
+    rows.sort((p, q) => p[0].y - q[0].y);
+  }
+  return rows.flat();
+}
+
+/** One array of measure boxes per system found in a single pass over the page. */
+function detectRows(original: Bitmap): Rect[][] {
   const slope = estimateSlope(original);
   const b = slope ? shear(original, slope) : original; // everything below works on level staff lines
   const { width: W, height: H } = b;
@@ -197,8 +220,9 @@ export function detectMeasures(original: Bitmap): Rect[] {
   const widths = pending.flatMap((p) => [...p.widthAt.values()]).sort((p, q) => p - q);
   const typical = widths[Math.floor(widths.length / 2)] ?? 1;
 
-  const out: Rect[] = [];
+  const out: Rect[][] = [];
   for (const { bounds, widthAt, top, bot } of pending) {
+    const row: Rect[] = [];
     // A heavy opening barline splits off the clef/key/time-signature header; a first interval much narrower than the rest is then
     // just that header. An ordinary-weight first barline is a real bar line (the first bar may simply be short, say a rest).
     if (bounds.length > 3 && (widthAt.get(bounds[1]) ?? 0) >= typical * 1.6) {
@@ -208,8 +232,9 @@ export function detectMeasures(original: Bitmap): Rect[] {
     for (let i = 0; i + 1 < bounds.length; i++) {
       // back from the straightened page to the original: a box sits `slope` rows lower per column it is to the right
       const lift = ((bounds[i] + bounds[i + 1]) / 2) * slope;
-      out.push({ x: bounds[i] / W, y: (top + lift) / H, w: (bounds[i + 1] - bounds[i]) / W, h: (bot - top) / H });
+      row.push({ x: bounds[i] / W, y: (top + lift) / H, w: (bounds[i + 1] - bounds[i]) / W, h: (bot - top) / H });
     }
+    if (row.length) out.push(row);
   }
   return out;
 }
