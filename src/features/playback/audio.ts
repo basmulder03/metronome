@@ -1,4 +1,4 @@
-import type { Timeline } from '../tempo-map/timeline';
+import type { Beat, Timeline } from '../tempo-map/timeline';
 
 export type ClickOpts = { subdivide: boolean };
 
@@ -53,7 +53,8 @@ export class Player {
   playing = false;
 
   /** Play measures from..to (inclusive), optionally looping. Must be called from a user gesture. */
-  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts) {
+  /** `pre` is an optional count-in (beats with negative times relative to the first played beat), sounded once. */
+  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts, pre: Beat[] = []) {
     this.stop(false);
     this.ctx ??= new AudioContext();
     await this.ctx.resume();
@@ -63,7 +64,9 @@ export class Player {
     const t0 = tl.beats[i0].time;
     const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
     const span = tEnd - t0;
-    const origin = ctx.currentTime + 0.1;
+    const lead = pre.length ? -pre[0].time : 0;
+    const origin = ctx.currentTime + 0.1 + lead;
+    for (const b of pre) if (b.accent) click(ctx, origin + b.time, b.accent); // count-in clicks group starts only
     let i = i0, lap = 0;
     this.playing = true;
 
@@ -105,12 +108,14 @@ export class Player {
 }
 
 /** Render measures from..to to a mono 16-bit WAV, faster than real time and entirely in the browser. */
-export async function renderWav(tl: Timeline, from: number, to: number, opts: ClickOpts, sampleRate = 44100): Promise<Blob> {
+export async function renderWav(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = [], sampleRate = 44100): Promise<Blob> {
   const [i0, iEnd] = beatRange(tl, from, to);
   const t0 = tl.beats[i0].time;
   const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
-  const ctx = new OfflineAudioContext(1, Math.ceil((tEnd - t0 + 0.5) * sampleRate), sampleRate);
-  for (const b of tl.beats.slice(i0, iEnd)) if (audible(b.accent, opts)) click(ctx, b.time - t0, b.accent);
+  const lead = pre.length ? -pre[0].time : 0;
+  const ctx = new OfflineAudioContext(1, Math.ceil((lead + tEnd - t0 + 0.5) * sampleRate), sampleRate);
+  for (const b of pre) if (b.accent) click(ctx, lead + b.time, b.accent);
+  for (const b of tl.beats.slice(i0, iEnd)) if (audible(b.accent, opts)) click(ctx, lead + b.time - t0, b.accent);
   return encodeWav(await ctx.startRendering());
 }
 
