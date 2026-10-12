@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dragEdge, mergeMeasures, moveBox, removeMeasure, replaceBoxes, splitMeasure } from './markup';
+import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes, splitMeasure } from './markup';
 import { emptyPiece, type Piece } from '../../shared/types';
 
 const piece = (n: number): Piece => {
@@ -142,5 +142,40 @@ describe('dragEdge and moveBox', () => {
     moveBox(p, 0, -5, 5);
     expect(p.measures[0].rect.x).toBe(0);
     expect(p.measures[0].rect.y).toBeCloseTo(0.9);
+  });
+});
+
+describe('short bars and upbeats while editing boxes', () => {
+  it('splitting keeps an upbeat on the left and sends "ends early" to the right half', () => {
+    const p = piece(1);
+    p.measures[0].marks = { pickup: 1, partial: 3 };
+    splitMeasure(p, 0, 0.5, 'n');
+    expect(p.measures[0].marks).toEqual({ pickup: 1 });
+    expect(p.measures[1].marks).toEqual({ partial: 3 });
+  });
+
+  it('merging takes the upbeat from the first box and the early end from the second', () => {
+    const p = piece(2);
+    p.measures[0].marks = { pickup: 1 };
+    p.measures[1].marks = { partial: 3 };
+    mergeMeasures(p, 0);
+    expect(p.measures[0].marks).toEqual({ pickup: 1, partial: 3 });
+  });
+});
+
+describe('looksLikePickup', () => {
+  const row = (widths: number[]) => {
+    const p = emptyPiece();
+    let x = 0.1;
+    widths.forEach((w, i) => { p.measures.push({ id: `${i}`, page: 0, rect: { x, y: 0.2, w, h: 0.1 } }); x += w; });
+    return p;
+  };
+  it('flags a first box much narrower than the others', () => expect(looksLikePickup(row([0.06, 0.2, 0.21, 0.2]))).toBe(true));
+  it('does not flag a normal first box, a short system or one already marked', () => {
+    expect(looksLikePickup(row([0.2, 0.2, 0.21, 0.2]))).toBe(false);
+    expect(looksLikePickup(row([0.06, 0.2]))).toBe(false);
+    const p = row([0.06, 0.2, 0.21, 0.2]);
+    p.measures[0].marks = { pickup: 1 };
+    expect(looksLikePickup(p)).toBe(false);
   });
 });

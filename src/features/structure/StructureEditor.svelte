@@ -4,16 +4,40 @@
 
   const m = $derived(app.selected >= 0 ? app.piece.measures[app.selected] : undefined);
   const k = $derived(m?.marks ?? {});
+
+  // upbeat (pickup): the last beats of the bar are written. short bar: the first beats are.
+  type Part = 'whole' | 'end' | 'start';
+  const part = $derived<Part>(k.pickup ? 'end' : k.partial ? 'start' : 'whole');
+  const count = $derived(k.pickup ?? k.partial ?? 1);
+  function setPart(next: Part) {
+    if (!m) return;
+    const n = count;
+    setMark(m, 'pickup', next === 'end' ? n : undefined);
+    setMark(m, 'partial', next === 'start' ? n : undefined);
+  }
+  function setCount(n: number) {
+    if (!m || !(n >= 1)) return;
+    setMark(m, part === 'end' ? 'pickup' : 'partial', n);
+  }
 </script>
 
 {#if m}
   <section>
     <h4>Length and holds</h4>
-    <p class="mut">Leave empty for a full bar. For a pickup, enter how many beats the bar really has (e.g. 1 in 4/4).</p>
+    <p class="mut">For an upbeat, mark the first bar as "only the last beats". A piece that began with one usually ends with a bar that is "only the first beats", which completes it.</p>
     <div class="row">
-      <label>Beats in this measure (pickup)
-        <input type="number" min="1" max="32" placeholder="full" value={k.pickup ?? ''} onchange={(e) => setMark(m, 'pickup', +e.currentTarget.value || undefined)} />
+      <label>Written part of this bar
+        <select value={part} onchange={(e) => setPart(e.currentTarget.value as Part)}>
+          <option value="whole">The whole bar</option>
+          <option value="end">Only the last beats (an upbeat)</option>
+          <option value="start">Only the first beats (the bar ends early)</option>
+        </select>
       </label>
+      {#if part !== 'whole'}
+        <label>How many beats are written
+          <input type="number" min="1" max="32" value={count} onchange={(e) => setCount(+e.currentTarget.value)} />
+        </label>
+      {/if}
     </div>
     <div class="row">
       <label class="check"><input type="checkbox" checked={!!k.fermata} onchange={(e) => setMark(m, 'fermata', e.currentTarget.checked ? { beat: 0, factor: 2 } : undefined)} /> Fermata</label>

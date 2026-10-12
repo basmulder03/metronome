@@ -24,8 +24,8 @@ export function splitMeasure(p: Piece, index: number, x: number, newId: string):
   p.measures.splice(index + 1, 0, { id: newId, page: m.page, rect: { ...m.rect, x, w: rightW } });
   m.rect = { ...m.rect, w: x - m.rect.x };
   // marks that belong to the end of the measure move to the right half; the rest stay on the left
-  const { repeatEnd, toCoda, fine, jump, volta, ...left } = m.marks ?? {};
-  const right = { repeatEnd, toCoda, fine, jump, volta };
+  const { repeatEnd, toCoda, fine, jump, volta, partial, ...left } = m.marks ?? {};
+  const right = { repeatEnd, toCoda, fine, jump, volta, partial };
   const clean = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
   const lm = clean({ ...left, volta }), rm = clean(right);
   if (Object.keys(lm).length) m.marks = lm; else delete m.marks;
@@ -69,6 +69,16 @@ export function replaceBoxes(p: Piece, page: number, rects: Rect[]): { kept: num
   return { kept, added: Math.max(0, rects.length - on.length), removed: Math.max(0, on.length - rects.length) };
 }
 
+/** True when the first box is much narrower than the others in its system: probably an upbeat (pickup) bar. */
+export function looksLikePickup(p: Piece): boolean {
+  const first = p.measures[0];
+  if (!first || first.marks?.pickup) return false;
+  const peers = p.measures.slice(1).filter((m) => m.page === first.page && Math.abs(m.rect.y - first.rect.y) < first.rect.h / 2);
+  if (peers.length < 2) return false;
+  const widths = peers.map((m) => m.rect.w).sort((a, b) => a - b);
+  return first.rect.w < widths[Math.floor(widths.length / 2)] * 0.6;
+}
+
 /** Join a measure with the one after it (a barline that was found by mistake). False if they are not on the same page. */
 export function mergeMeasures(p: Piece, index: number): boolean {
   const a = p.measures[index], b = p.measures[index + 1];
@@ -76,9 +86,9 @@ export function mergeMeasures(p: Piece, index: number): boolean {
   const x0 = Math.min(a.rect.x, b.rect.x), y0 = Math.min(a.rect.y, b.rect.y);
   const x1 = Math.max(a.rect.x + a.rect.w, b.rect.x + b.rect.w), y1 = Math.max(a.rect.y + a.rect.h, b.rect.y + b.rect.h);
   // the merged measure ends where b ended, so b's end-of-measure marks come along; a's start marks stay
-  const { repeatEnd, toCoda, fine, jump, volta } = b.marks ?? {};
-  const { repeatEnd: _r, toCoda: _t, fine: _f, jump: _j, volta: _v, ...start } = a.marks ?? {};
-  const marks = Object.fromEntries(Object.entries({ ...start, repeatEnd, toCoda, fine, jump, volta }).filter(([, v]) => v !== undefined));
+  const { repeatEnd, toCoda, fine, jump, volta, partial } = b.marks ?? {};
+  const { repeatEnd: _r, toCoda: _t, fine: _f, jump: _j, volta: _v, partial: _p, ...start } = a.marks ?? {};
+  const marks = Object.fromEntries(Object.entries({ ...start, repeatEnd, toCoda, fine, jump, volta, partial }).filter(([, v]) => v !== undefined));
   a.rect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   if (Object.keys(marks).length) a.marks = marks; else delete a.marks;
   removeMeasure(p, index + 1); // events that sat on the second box go with it

@@ -4,7 +4,7 @@
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn } from './features/tempo-map/timeline';
   import { detectMeasures } from './features/score/detect';
-  import { dragEdge, mergeMeasures, moveBox, removeMeasure, replaceBoxes } from './features/score/markup';
+  import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes } from './features/score/markup';
   import { actionFor, type Action } from './features/score/shortcuts';
   import ShortcutsDialog from './features/score/ShortcutsDialog.svelte';
   import { createHistory } from './shared/history';
@@ -200,7 +200,7 @@
     app.selected = -1;
     mode = 'select';
     status = total
-      ? `Found ${total} measures on ${pagesWith} of ${doc.numPages} pages. Tempos and time signatures you had set are kept. Check the boxes, then fix misses by dragging, with Split (S) or Merge (M).`
+      ? `Found ${total} measures on ${pagesWith} of ${doc.numPages} pages. Tempos and time signatures you had set are kept. Check the boxes, then fix misses by dragging, with Split (S) or Merge (M).${looksLikePickup(app.piece) ? ' Measure 1 looks short: if it is an upbeat, select it and choose "Only the last beats".' : ''}`
       : 'No staves found — draw the boxes by hand.';
   }
 
