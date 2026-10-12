@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { makePdf } from './make-pdf.mjs';
-import { createUser } from './fixtures';
+import { createUser, PB, signInContext } from './fixtures';
 
 test.beforeAll(() => makePdf('e2e/score.pdf'));
 
@@ -82,4 +82,34 @@ test('two accounts in one browser never see each other\'s library', async ({ pag
   await signIn(a); // A's piece is still there
   await page.getByRole('button', { name: 'Library' }).click();
   await expect(page.getByRole('dialog', { name: 'Library' }).getByRole('listitem')).toHaveCount(1);
+});
+
+test('an account removed on the server is signed out on the next visit', async ({ browser }) => {
+  const u = await createUser();
+  const ctx = await browser.newContext();
+  await signInContext(ctx, u);
+  const page = await ctx.newPage();
+  await page.goto('/');
+  await expect(page.getByText('Open PDF')).toBeVisible();
+
+  const su = await (await fetch(`${PB}/api/collections/_superusers/auth-with-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identity: 'test@example.com', password: 'test-password-123' }) })).json();
+  const id = (u.record as { id: string }).id;
+  expect((await fetch(`${PB}/api/collections/users/records/${id}`, { method: 'DELETE', headers: { Authorization: su.token } })).ok).toBe(true);
+
+  await page.reload(); // the saved session is refreshed on start; the server says the account is gone
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await ctx.close();
+});
+
+test('a server that cannot be reached does not sign anyone out', async ({ browser }) => {
+  const u = await createUser();
+  const ctx = await browser.newContext();
+  await signInContext(ctx, u);
+  const page = await ctx.newPage();
+  await page.route('**/api/**', (r) => r.abort('connectionrefused')); // network failure, not a rejection
+  await page.goto('/');
+  await expect(page.getByText('Open PDF')).toBeVisible();
+  await page.waitForTimeout(500); // give the failed refresh time to settle
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
+  await ctx.close();
 });
