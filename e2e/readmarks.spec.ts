@@ -48,3 +48,34 @@ test('a PDF without a text layer says so instead of guessing', async ({ page }) 
   await expect(page.getByRole('status')).toContainText('no text layer');
   await expect(page.getByRole('dialog', { name: 'Read from PDF' })).toHaveCount(0);
 });
+
+test('a scanned PDF can be read with OCR: tempo and molto rall. found, nothing applied until reviewed', async ({ page }) => {
+  test.setTimeout(90_000);
+  const problems: string[] = [];
+  page.on('console', (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) problems.push(m.text()); });
+  page.on('pageerror', (e) => problems.push(e.message));
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles('e2e/fixtures/minuet-scan.pdf');
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Auto-detect' }).click();
+  await expect(page.locator('.box').first()).toBeVisible();
+  const boxes = await page.locator('.box').count();
+  expect(boxes).toBeGreaterThanOrEqual(28); // detection works on pixels, so a scan is fine
+
+  await page.getByRole('button', { name: 'Read from PDF' }).click();
+  await expect(page.getByRole('status')).toContainText('no text layer');
+  await page.getByRole('button', { name: /Read with OCR/ }).click();
+
+  const dlg = page.getByRole('dialog', { name: 'Read from PDF' });
+  await expect(dlg).toBeVisible({ timeout: 60_000 });
+  const rows = await dlg.getByRole('listitem').allInnerTexts();
+  console.log(rows.join('\n'));
+  expect(rows.some((r) => /Measure 1 · Tempo: .* = 130/.test(r))).toBe(true);
+  expect(rows.filter((r) => /molto rall\./.test(r)).length).toBeGreaterThanOrEqual(2);
+  expect(rows.some((r) => /Time signature/.test(r))).toBe(false); // OCR cannot read music-font digits
+  // OCR guesses the beat unit, so those rows are flagged and start unticked
+  await expect(dlg.getByRole('checkbox', { checked: true })).toHaveCount(await dlg.locator('li:not(:has(em))').count());
+  expect(problems).toEqual([]);
+  await dlg.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('.box').first()).not.toContainText('130'); // cancelled: nothing applied
+});
