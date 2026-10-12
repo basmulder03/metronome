@@ -42,11 +42,29 @@ no file field at all, so a score cannot be uploaded even by a hand-made request.
   PDF), *Attach PDF* or *Replace PDF* with the other part, open it and run Auto-detect.
 - **Drag** a box to move it; drag a handle on a selected box to resize an edge. A barline that two boxes share moves both, so
   dragging a bar resizes the two measures around it. **Split** (tap a barline) and **Merge** fix wrongly found or missed bars.
+- **Outlining:** a box you draw takes the top and height of the other boxes in its row, and its left and right edges connect
+  to the barline of a neighbour that is close. After a drag or resize, edges settle onto nearby neighbours. Hold **Alt** to skip
+  this for one gesture, or switch it off in Options. **Tidy row** (`T`) evens out a whole row at once: same top and height,
+  small gaps and overlaps between bars closed.
 - Every edit can be undone with Ctrl+Z (a whole drag is one step).
 - **Keyboard** (press `?` in the app for the list): ← → select a measure, Delete removes the box, Alt+arrows move it,
   Alt+Shift+arrows resize it, `,` and `.` move the barline after it (hold Shift for bigger steps), `M` merges with the next
   measure, `D`/`S`/`V` switch mode, Space plays or stops, Esc deselects, F2 renames. Shortcuts pause while you type in a field
   or have a dialog open.
+
+### Upbeats, rests and sheets with several parts
+
+- **Upbeats (pickups):** select the bar and choose *Only the last beats* with how many are written. A piece that began with
+  an upbeat usually ends with a bar that is *Only the first beats*, which completes it. The count-in leaves room for the upbeat
+  (1-2-3, then the upbeat is "4"). Auto-detect suggests an upbeat when the first box is much narrower than the rest.
+- **Multi-measure rests:** give the box the number of bars it stands for. The click runs for all of them, and boxes then show
+  the printed bar numbers (a four-bar rest box reads *2–5*, the next one *6*).
+- **Several parts on one sheet** (movements, sections): mark where each part starts and name it. In Options choose what happens
+  at the end of a part: *Keep playing* or *Stop and wait*. A part can also be flagged to always stop after it. When playback
+  stops, the next part is selected, so Space continues with a fresh count-in. Use the part picker next to the title to jump to
+  a part, and *Export this part* to get one part as its own audio file. Repeats inside a part do not end it.
+- **Saving:** everything is saved automatically as you work (the title bar shows the state). Ctrl+S saves right now and syncs
+  to your account, instead of the browser's *Save page* dialog.
 
 ### Accounts and administration
 

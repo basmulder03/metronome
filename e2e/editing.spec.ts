@@ -135,10 +135,12 @@ test.describe('dragging', () => {
     const before = await rect(page, 5);
     expect(before).toEqual(await rect(page, 5));
     const box = (await page.locator('.box').nth(5).boundingBox())!;
+    await page.keyboard.down('Alt'); // no snapping: this test is about plain movement
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 12, { steps: 6 });
     await page.mouse.up();
+    await page.keyboard.up('Alt');
     const after = await rect(page, 5);
     expect(after.x).toBeGreaterThan(before.x);
     expect(after.y).toBeGreaterThan(before.y);
@@ -326,5 +328,130 @@ test.describe('saving', () => {
     await page.locator('.box').first().click();
     await page.getByRole('button', { name: 'Set tempo here' }).click();
     await expect(page.locator('.saved')).toContainText(/Saved/, { timeout: 5000 });
+  });
+});
+
+test.describe('outlining', () => {
+  /** Draw a box by dragging, in fractions of the page. The synthetic page is blank where we draw, so nothing is detected. */
+  async function drawBox(page: Page, x0: number, y0: number, x1: number, y1: number) {
+    const b = (await page.locator('.page').boundingBox())!;
+    await page.mouse.move(b.x + b.width * x0, b.y + b.height * y0);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1, { steps: 4 });
+    await page.mouse.up();
+  }
+  async function blankPage(page: Page) {
+    await page.goto('/');
+    await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
+    await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  }
+  /** Three sloppily drawn bars in one row: different tops and heights, small gaps and overlaps between them. */
+  async function sloppyRow(page: Page) {
+    await drawBox(page, 0.10, 0.20, 0.30, 0.30);
+    await drawBox(page, 0.306, 0.215, 0.50, 0.285);
+    await drawBox(page, 0.492, 0.19, 0.70, 0.31);
+  }
+
+  test('a drawn box takes the height of its row and connects to the barline beside it', async ({ page }) => {
+    await blankPage(page);
+    await sloppyRow(page);
+    await expect(page.locator('.box')).toHaveCount(3);
+    const [a, b, c] = [await rect(page, 0), await rect(page, 1), await rect(page, 2)];
+    expect([b.y, c.y]).toEqual([a.y, a.y]); // the same top
+    expect([b.h, c.h]).toEqual([a.h, a.h]); // the same height
+    expect(a.x + a.w).toBeCloseTo(b.x, 6); // the sides are connected
+    expect(b.x + b.w).toBeCloseTo(c.x, 6);
+  });
+
+  test('only a box in the same row takes its height, and only a close edge is pulled onto a barline', async ({ page }) => {
+    await blankPage(page);
+    await drawBox(page, 0.10, 0.20, 0.30, 0.30);
+    await drawBox(page, 0.12, 0.36, 0.45, 0.46); // a different row (kept within the visible window)
+    await drawBox(page, 0.60, 0.205, 0.80, 0.29); // the same row but 0.3 away from the barline
+    // boxes are kept in reading order: the far one is second in the first row, the lower row comes last
+    const [far, low] = [await rect(page, 1), await rect(page, 2)];
+    expect(low.h).toBeCloseTo(0.10, 2); // another row: exactly as drawn
+    expect(far.x).toBeCloseTo(0.60, 2); // nowhere near a barline: its position is left alone
+    expect(far.h).toBeCloseTo(0.10, 3); // but it is in the first row, so it has that row's height
+    expect(far.y).toBeCloseTo(0.20, 3);
+  });
+
+  test('it can be switched off in Options, remembers that, and Alt skips it for one box', async ({ page }) => {
+    await blankPage(page);
+    await page.getByText('Options').click();
+    await page.getByLabel('Line boxes up with their neighbours').uncheck();
+    await page.getByText('Options').click();
+    await drawBox(page, 0.10, 0.20, 0.30, 0.30);
+    await drawBox(page, 0.306, 0.215, 0.50, 0.285);
+    expect((await rect(page, 1)).h).toBeCloseTo(0.07, 2); // as drawn
+    expect((await rect(page, 1)).x).toBeCloseTo(0.306, 2);
+
+    await page.waitForTimeout(400);
+    await page.reload();
+    await expect(page.locator('.box')).toHaveCount(2); // the piece is back
+    await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+    await page.getByText('Options').click();
+    await expect(page.getByLabel('Line boxes up with their neighbours')).not.toBeChecked();
+    await page.getByLabel('Line boxes up with their neighbours').check();
+    await page.getByText('Options').click();
+
+    await page.keyboard.down('Alt'); // on, but held off for this gesture
+    await drawBox(page, 0.52, 0.215, 0.70, 0.285);
+    await page.keyboard.up('Alt');
+    expect((await rect(page, 2)).h).toBeCloseTo(0.07, 2);
+  });
+
+  test('after a drag a box settles onto its neighbours, unless Alt is held', async ({ page }) => {
+    await detected(page);
+    const peerY = (await rect(page, 0)).y;
+    await page.locator('.box').nth(2).click();
+    const drag = async (alt: boolean) => {
+      const box = (await page.locator('.box').nth(2).boundingBox())!;
+      if (alt) await page.keyboard.down('Alt');
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 4, { steps: 4 }); // a few pixels down: within reach of the row
+      await page.mouse.up();
+      if (alt) await page.keyboard.up('Alt');
+    };
+    await drag(false);
+    expect((await rect(page, 2)).y).toBeCloseTo(peerY, 6); // dropped slightly off, it settled into line with the row
+    await drag(true);
+    expect((await rect(page, 2)).y).toBeGreaterThan(peerY + 0.002); // with Alt it stays where it was dropped
+  });
+
+  test('T tidies the whole row: same top and height, bars connected', async ({ page }) => {
+    await detected(page);
+    await page.locator('.box').nth(1).click();
+    for (let i = 0; i < 5; i++) await page.keyboard.press('Alt+Shift+ArrowDown'); // taller than the rest
+    for (let i = 0; i < 4; i++) await page.keyboard.press('Alt+ArrowDown'); // and lower
+    await page.keyboard.press('Alt+ArrowLeft');
+    const mangled = await rect(page, 1);
+    const tidyRef = await rect(page, 0);
+    expect(mangled.h).not.toBeCloseTo(tidyRef.h, 3);
+
+    await page.keyboard.press('t');
+    await expect(page.getByRole('status')).toContainText('Tidied');
+    const row = [await rect(page, 0), await rect(page, 1), await rect(page, 2), await rect(page, 3)];
+    expect(new Set(row.map((r) => r.y)).size).toBe(1);
+    expect(new Set(row.map((r) => r.h)).size).toBe(1);
+    for (let k = 0; k < 3; k++) expect(row[k].x + row[k].w).toBeCloseTo(row[k + 1].x, 6);
+    const second = await rect(page, 4); // the other row did not move
+    expect(second.y).toBeGreaterThan(row[0].y + 0.2);
+
+    await page.keyboard.press('t');
+    await expect(page.getByRole('status')).toContainText('already tidy');
+  });
+
+  test('the Tidy row button does the same and is undoable', async ({ page }) => {
+    await detected(page);
+    await page.locator('.box').nth(1).click();
+    for (let i = 0; i < 5; i++) await page.keyboard.press('Alt+Shift+ArrowDown');
+    const mangled = await rect(page, 1);
+    await page.waitForTimeout(600);
+    await page.getByRole('button', { name: 'Tidy row' }).click();
+    expect((await rect(page, 1)).h).toBeLessThan(mangled.h);
+    await page.keyboard.press('Control+z');
+    expect((await rect(page, 1)).h).toBeCloseTo(mangled.h, 6);
   });
 });
