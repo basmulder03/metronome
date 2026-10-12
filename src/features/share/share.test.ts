@@ -47,6 +47,20 @@ describe('share codec', () => {
 });
 
 describe('validatePiece', () => {
+  it('keeps part marks and the stop-after-part setting, drops bad names', () => {
+    const x = JSON.parse(JSON.stringify(sample()));
+    x.afterPart = 'stop';
+    x.measures[0].marks = { part: { name: 'Intro', pause: true } };
+    x.measures[1].marks = { part: { name: 'x'.repeat(81) } };
+    x.measures[2].marks = { part: { name: 42 } };
+    const p = validatePiece(x)!;
+    expect(p.afterPart).toBe('stop');
+    expect(p.measures[0].marks).toEqual({ part: { name: 'Intro', pause: true } });
+    expect(p.measures[1].marks).toBeUndefined();
+    expect(p.measures[2].marks).toBeUndefined();
+    expect(validatePiece({ ...x, afterPart: 'whatever' })!.afterPart).toBeUndefined();
+  });
+
   it('keeps an upbeat and a short bar, drops nonsense counts', () => {
     const x = JSON.parse(JSON.stringify(sample()));
     x.measures[0].marks = { pickup: 1, partial: 3 };

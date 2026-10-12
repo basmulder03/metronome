@@ -13,6 +13,7 @@ function marks(v: unknown): Marks | undefined {
   if (int(v.repeatEnd, 2, 16)) out.repeatEnd = v.repeatEnd;
   if (Array.isArray(v.volta) && v.volta.length <= 4 && v.volta.every((n) => int(n, 1, 8))) out.volta = v.volta as number[];
   if (v.jump === 'dc' || v.jump === 'ds') out.jump = v.jump;
+  if (isObj(v.part) && typeof v.part.name === 'string' && v.part.name.length <= 80) out.part = { name: v.part.name, ...(v.part.pause === true && { pause: true }) };
   if (int(v.pickup, 1, 64)) out.pickup = v.pickup;
   if (int(v.partial, 1, 64)) out.partial = v.partial;
   if (isObj(v.fermata) && int(v.fermata.beat, 0, 63) && num(v.fermata.factor, 1, 16)) out.fermata = { beat: v.fermata.beat, factor: v.fermata.factor };
@@ -26,7 +27,7 @@ function marks(v: unknown): Marks | undefined {
 export function validatePiece(x: unknown): Piece | null {
   if (!isObj(x) || !Array.isArray(x.measures) || x.measures.length === 0 || x.measures.length > MAX_MEASURES) return null;
   const n = x.measures.length;
-  const piece: Piece = { measures: [], meters: [], tempos: [], ramps: [], countIn: int(x.countIn, 0, 4) ? x.countIn : 0 };
+  const piece: Piece = { measures: [], meters: [], tempos: [], ramps: [], countIn: int(x.countIn, 0, 4) ? x.countIn : 0, ...(x.afterPart === 'stop' && { afterPart: 'stop' as const }) };
 
   for (const m of x.measures) {
     if (!isObj(m) || !int(m.page, 0, 9999) || !isObj(m.rect)) return null;

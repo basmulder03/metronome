@@ -12,6 +12,7 @@ export function setMark<K extends keyof Marks>(m: Measure, key: K, value: Marks[
 export function marksLabel(k?: Marks): string {
   if (!k) return '';
   const out: string[] = [];
+  if (k.part) out.push(`[${k.part.name || 'part'}${k.part.pause ? ' ⏸' : ''}]`);
   if (k.repeatStart) out.push('|:');
   if (k.volta) out.push(`${k.volta.join(',')}.`);
   if (k.segno) out.push('segno');

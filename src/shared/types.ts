@@ -18,6 +18,8 @@ export type Marks = {
   jump?: 'dc' | 'ds';
   /** Pickup measure: only the last N beats (in 1/den units) of the meter are present. */
   pickup?: number;
+  /** This measure starts a new part (a movement or section of one sheet). `pause`: playback stops after the part even when set to play on. */
+  part?: { name: string; pause?: boolean };
   /** Short bar: only the first N beats are present (it ends early, e.g. the last bar of a piece that began with a pickup). */
   partial?: number;
   /** Hold one beat (0-based unit index in the full meter) for `factor` times its length. */
@@ -45,6 +47,8 @@ export type Piece = {
   ramps: Ramp[];
   /** Bars of click before playback and in exports (0 = none). */
   countIn?: number;
+  /** At the end of a part: keep playing (default) or stop and wait for the player. */
+  afterPart?: 'continue' | 'stop';
 };
 
 export const emptyPiece = (): Piece => ({ measures: [], meters: [], tempos: [], ramps: [], countIn: 0 });
