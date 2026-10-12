@@ -8,7 +8,7 @@ const open = (page: import('@playwright/test').Page, file: string) => page.locat
 async function drawOne(page: import('@playwright/test').Page) {
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return r.height > 0; }).toBe(true);
-  await page.waitForTimeout(600);
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   const b = (await score.boundingBox())!;
   await page.mouse.move(b.x + b.width * 0.1, b.y + b.height * 0.13);
   await page.mouse.down();
@@ -22,7 +22,9 @@ test('library keeps separate pieces and switches between them', async ({ page })
   await open(page, 'e2e/score.pdf');
   await drawOne(page); // piece A: 1 measure
   await page.waitForTimeout(300);
+  const before = (await page.locator('main').getAttribute('data-piece')) ?? '';
   await open(page, 'e2e/fixtures/minuet-in-g.pdf'); // piece B
+  await expect(page.locator('main')).not.toHaveAttribute('data-piece', before);
   await expect(page.locator('.box')).toHaveCount(0);
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.locator('.box')).toHaveCount(31);

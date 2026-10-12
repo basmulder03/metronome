@@ -8,7 +8,7 @@ async function markUp(page: Page) {
   await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(133);
-  await page.waitForTimeout(500);
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.locator('.box')).toHaveCount(8);
   await page.locator('.box').nth(0).click();
@@ -42,7 +42,7 @@ test('share link carries markup only; recipient attaches their own PDF', async (
   await expect(p2.getByRole('button', { name: 'Measure 1' })).toContainText('=88');
   await expect(p2.getByRole('button', { name: 'Measure 4' })).toContainText(':|');
   expect(p2.url()).not.toContain('#share');
-  await p2.getByRole('button', { name: 'Play' }).click();
+  await p2.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(p2.locator('.tile.playing')).toHaveCount(1);
   await p2.getByRole('button', { name: 'Stop' }).click();
 

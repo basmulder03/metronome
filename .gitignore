@@ -1,5 +1,6 @@
 node_modules
 dist
 e2e/score.pdf
+e2e/score-b.pdf
 test-results
 playwright-report

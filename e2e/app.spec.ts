@@ -57,7 +57,7 @@ test('playback highlights measures and advances', async ({ page }) => {
   await page.locator('.box').nth(0).click();
   await page.getByRole('button', { name: 'Set tempo here' }).click();
   await page.getByLabel('BPM').first().fill('240'); // 4 bars = 4 s
-  await page.getByRole('button', { name: /^Play/ }).click();
+  await page.getByRole('button', { name: /^Play( from \d+)?$/ }).click();
   await expect(page.locator('.box.playing')).toHaveCount(1);
   const seen = new Set<string>();
   const t0 = Date.now();
@@ -176,7 +176,7 @@ test('playhead follows the played order through a repeat', async ({ page }) => {
   await page.locator('.box').nth(3).click();
   await page.getByLabel('Repeat ends here').check();
   await page.locator('.box').nth(0).click();
-  await page.getByRole('button', { name: /^Play/ }).click();
+  await page.getByRole('button', { name: /^Play( from \d+)?$/ }).click();
   const seq: string[] = [];
   const t0 = Date.now();
   while (Date.now() - t0 < 5400) {

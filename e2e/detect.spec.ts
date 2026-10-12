@@ -7,7 +7,7 @@ test('auto-detect on a real score finds the first system as 6 measures and plays
   await page.locator('input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(141);
-  await page.waitForTimeout(600);
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.getByRole('status')).toContainText('Found');
   const boxes = await page.locator('.box').evaluateAll((els) => els.map((e) => ({ top: (e as HTMLElement).style.getPropertyValue('--y'), n: e.querySelector('.n')?.textContent })));
