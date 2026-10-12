@@ -29,15 +29,19 @@
   $effect(() => { groupingText = meterEv?.meter.grouping.join('+') ?? ''; groupingBad = false; });
 
   function addMeter() { p.meters.push({ at: i, meter: { ...meter, grouping: [...meter.grouping] } }); }
+  // These run on "change", which fires when a field loses focus: by then the selection may have moved on and the section is gone.
   function resize() {
-    const m = meterEv!.meter;
+    const m = meterEv?.meter;
+    if (!m) return;
     m.grouping = defaultGrouping(m.num, m.den);
     groupingText = m.grouping.join('+');
   }
   function regroup() {
-    const g = parseGrouping(groupingText, meterEv!.meter.num);
+    const ev = meterEv;
+    if (!ev) return;
+    const g = parseGrouping(groupingText, ev.meter.num);
     groupingBad = !g;
-    if (g) meterEv!.meter.grouping = g;
+    if (g) ev.meter.grouping = g;
   }
   let taps: number[] = [];
   /** Tap in time with the music; sets this measure's BPM. */
@@ -87,7 +91,7 @@
       <div class="row">
         <label>BPM<input type="number" min="20" max="400" bind:value={tempoEv.bpm} /></label>
         <label>Beat unit
-          <select value={unitIndex(tempoEv.unit)} onchange={(e) => { const u = UNITS[+e.currentTarget.value]; tempoEv.unit = { den: u.den, dotted: u.dotted }; }}>
+          <select value={unitIndex(tempoEv.unit)} onchange={(e) => { const u = UNITS[+e.currentTarget.value]; if (tempoEv) tempoEv.unit = { den: u.den, dotted: u.dotted }; }}>
             {#each UNITS as u, k}<option value={k}>{u.label}</option>{/each}
           </select>
         </label>
@@ -106,7 +110,7 @@
     {#if ramp}
       <div class="row">
         <label>Last measure<input type="number" min={i + 1} max={maxRampEnd(p, i) + 1} value={ramp.to + 1}
-          onchange={(e) => { ramp.to = Math.min(maxRampEnd(p, i), Math.max(i, +e.currentTarget.value - 1)); e.currentTarget.value = String(ramp.to + 1); }} /></label>
+          onchange={(e) => { if (!ramp) return; ramp.to = Math.min(maxRampEnd(p, i), Math.max(i, +e.currentTarget.value - 1)); e.currentTarget.value = String(ramp.to + 1); }} /></label>
         <label>Start BPM<input type="number" min="20" max="400" bind:value={ramp.startBpm} /></label>
         <label>End BPM<input type="number" min="20" max="400" bind:value={ramp.endBpm} /></label>
       </div>

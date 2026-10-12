@@ -3,9 +3,10 @@
   import type { Measure, Rect } from '../../shared/types';
   import { app } from '../../shared/store.svelte';
   import { boxLabel, inRamp as rampOf } from './labels';
-  import { insertMeasures, splitMeasure } from './markup';
+  import { dragEdge, insertMeasures, moveBox, splitMeasure, type Edge } from './markup';
 
-  let { doc, pageNum, zoom, mode }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select' } = $props();
+  // `onstep` is called just before a gesture edits the boxes, so each drag, drawn box or split is its own undo step
+  let { doc, pageNum, zoom, mode, onstep = () => {} }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select'; onstep?: () => void } = $props();
 
   let canvas: HTMLCanvasElement;
   let renderedWidth = 0; // width the page was last drawn at (plain variable: reading it must not re-run the render)
@@ -15,9 +16,9 @@
    * Pixels of the current page for barline detection, rendered offscreen at a fixed width so the result does not depend on
    * the screen: on a phone the displayed page is so small that a scan's thin staff lines all but vanish.
    */
-  export async function bitmap(width = 1400) {
+  export async function bitmap(width = 1400, pageIndex = pageNum) {
     if (!doc) throw new Error('no document');
-    const page = await doc.getPage(pageNum + 1);
+    const page = await doc.getPage(pageIndex + 1);
     const viewport = page.getViewport({ scale: width / page.getViewport({ scale: 1 }).width });
     const c = document.createElement('canvas');
     c.width = Math.ceil(viewport.width);
@@ -99,11 +100,47 @@
     if (!start) return;
     const r = rectOf(start, norm(e));
     start = ghost = null;
+    if (r.w > 0.02 && r.h > 0.01) onstep();
     if (r.w > 0.02 && r.h > 0.01) insertMeasure({ id: crypto.randomUUID(), page: pageNum, rect: r });
   }
 
+  // Dragging in Select mode: the body of a box moves it, the handles on a selected box move one edge. A barline shared with the
+  // next box moves both, so dragging a bar resizes the two measures around it.
+  type Drag = { kind: 'move' | Edge; i: number; x: number; y: number; moved: boolean };
+  let drag: Drag | null = null;
+  const EDGES: Edge[] = ['left', 'right', 'top', 'bottom'];
+
+  function boxDown(e: PointerEvent, i: number) {
+    if (mode !== 'select' || (e.target as HTMLElement).classList.contains('handle')) return;
+    // not selected yet: a plain click selects on `click`, after a field being edited has lost focus (its change event must still find its box)
+    drag = { kind: 'move', i, ...norm(e), moved: false };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+  function handleDown(e: PointerEvent, i: number, edge: Edge) {
+    e.stopPropagation();
+    e.preventDefault();
+    app.selected = i;
+    drag = { kind: edge, i, ...norm(e), moved: false };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+  function dragMove(e: PointerEvent) {
+    if (!drag) return;
+    const p = norm(e);
+    const dx = p.x - drag.x, dy = p.y - drag.y;
+    const r = overlay.getBoundingClientRect();
+    if (!drag.moved && Math.hypot(dx * r.width, dy * r.height) < 3) return; // a click, not a drag
+    if (!drag.moved) { onstep(); app.selected = drag.i; } // a real drag: now it is the selected box, and an undo step of its own
+    drag.moved = true;
+    if (drag.kind === 'move') moveBox(app.piece, drag.i, dx, dy);
+    else dragEdge(app.piece, drag.i, drag.kind, drag.kind === 'left' || drag.kind === 'right' ? dx : dy);
+    drag.x = p.x;
+    drag.y = p.y;
+  }
+  const dragEnd = () => { drag = null; };
+
   function pick(e: MouseEvent, i: number) {
     if (mode === 'split') {
+      onstep();
       if (splitMeasure(app.piece, i, norm(e).x, crypto.randomUUID())) app.selected = i;
     } else app.selected = i;
   }
@@ -111,6 +148,17 @@
   const here = $derived(app.piece.measures.map((m, i) => ({ m, i })).filter(({ m }) => m.page === pageNum));
   const label = (i: number) => boxLabel(app.piece, i);
   const inRamp = (i: number) => rampOf(app.piece, i);
+
+  // On a phone the inspector is a bottom sheet over the lower part of the page: keep the box you picked above it.
+  $effect(() => {
+    if (app.selected < 0 || app.playing >= 0) return;
+    queueMicrotask(() => {
+      const el = overlay?.querySelector<HTMLElement>('.box.sel');
+      if (!el || !matchMedia('(max-width: 899px)').matches) return;
+      const r = el.getBoundingClientRect();
+      if (r.bottom > innerHeight * 0.55 || r.top < 0) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
+  });
 
   // Follow playback: scroll the active box into view.
   $effect(() => {
@@ -124,8 +172,14 @@
   {#each here as { m, i } (m.id)}
     <button type="button" class="box" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(i)}
       style:--x={m.rect.x} style:--y={m.rect.y} style:--w={m.rect.w} style:--h={m.rect.h}
-      onclick={(e) => pick(e, i)}>
+      onclick={(e) => pick(e, i)} onpointerdown={(e) => boxDown(e, i)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragEnd}>
       <span class="n">{i + 1}</span><span class="tag">{label(i)}</span>
+      {#if mode === 'select' && i === app.selected}
+        {#each EDGES as edge}
+          <!-- svelte-ignore a11y_no_static_element_interactions -- pointer-only handles; the keyboard has Alt+arrows and , . for the same job -->
+          <span class="handle {edge}" data-edge={edge} onpointerdown={(e) => handleDown(e, i, edge)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragEnd}></span>
+        {/each}
+      {/if}
     </button>
   {/each}
   {#if ghost}<div class="box ghost" style:--x={ghost.x} style:--y={ghost.y} style:--w={ghost.w} style:--h={ghost.h}></div>{/if}
@@ -139,7 +193,15 @@
   .box { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--w) * 100%); height: calc(var(--h) * 100%); padding: 0; min-height: 0; border: 1px solid color-mix(in srgb, var(--on-paper-accent) 50%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--on-paper-accent) 6%, transparent); text-align: left; transition: background 0.12s; }
   .page.drawing .box { pointer-events: none; }
   .box.ramp { background: color-mix(in srgb, var(--on-paper-ramp) 12%, transparent); border-color: color-mix(in srgb, var(--on-paper-ramp) 60%, transparent); }
-  .box.sel { outline: 2px solid var(--on-paper-accent); }
+  .box.sel { outline: 2px solid var(--on-paper-accent); touch-action: none; cursor: move; }
+  .handle { position: absolute; background: var(--on-paper-accent); opacity: 0.55; touch-action: none; }
+  .handle:hover { opacity: 1; }
+  .handle.left, .handle.right { top: 0; bottom: 0; width: 14px; cursor: ew-resize; }
+  .handle.left { left: -7px; }
+  .handle.right { right: -7px; }
+  .handle.top, .handle.bottom { left: 0; right: 0; height: 14px; cursor: ns-resize; }
+  .handle.top { top: -7px; }
+  .handle.bottom { bottom: -7px; }
   .box.playing { background: color-mix(in srgb, var(--on-paper-play) 35%, transparent); border-color: var(--on-paper-play); }
   .ghost { border-style: dashed; pointer-events: none; }
   .n { position: absolute; top: -1px; left: 2px; font-size: 10px; font-weight: 700; color: var(--on-paper-accent); }
