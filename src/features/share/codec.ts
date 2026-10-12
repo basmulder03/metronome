@@ -25,10 +25,10 @@ const unb64 = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/
 
 /** Markup only (never the PDF) as a compact URL-safe string. */
 export async function encodeShare(title: string, piece: Piece): Promise<string> {
-  // v2: no measure ids (imports make their own) and boxes as whole numbers in 1/10000 of the page: far shorter than UUIDs and long decimals
+  // no measure ids (imports make their own) and boxes as whole numbers in 1/10000 of the page: far shorter than UUIDs and long decimals
   const q = (n: number) => Math.round(n * 10000);
   const measures = piece.measures.map((m) => [m.page, q(m.rect.x), q(m.rect.y), q(m.rect.w), q(m.rect.h), ...(m.marks ? [m.marks] : [])]);
-  const json = new TextEncoder().encode(JSON.stringify({ v: 2, t: title, p: { ...piece, measures } }));
+  const json = new TextEncoder().encode(JSON.stringify({ v: 1, t: title, p: { ...piece, measures } }));
   return b64(await pipe(json, new CompressionStream('deflate-raw')));
 }
 
@@ -37,13 +37,10 @@ export async function decodeShare(code: string): Promise<{ title: string; piece:
   try {
     const raw = await pipe(unb64(code) as Uint8Array<ArrayBuffer>, new DecompressionStream('deflate-raw'), MAX_BYTES);
     const x = JSON.parse(new TextDecoder().decode(raw));
-    if ((x?.v !== 1 && x?.v !== 2) || typeof x.t !== 'string') return null;
-    if (x.v === 2) {
-      if (!Array.isArray(x.p?.measures)) return null;
-      x.p.measures = x.p.measures.map((a: unknown) => Array.isArray(a)
-        ? { page: a[0], rect: { x: a[1] / 10000, y: a[2] / 10000, w: a[3] / 10000, h: a[4] / 10000 }, marks: a[5] }
-        : null);
-    }
+    if (x?.v !== 1 || typeof x.t !== 'string' || !Array.isArray(x.p?.measures)) return null;
+    x.p.measures = x.p.measures.map((a: unknown) => Array.isArray(a)
+      ? { page: a[0], rect: { x: a[1] / 10000, y: a[2] / 10000, w: a[3] / 10000, h: a[4] / 10000 }, marks: a[5] }
+      : null);
     const piece = validatePiece(x.p);
     return piece ? { title: x.t.slice(0, 120), piece } : null;
   } catch {

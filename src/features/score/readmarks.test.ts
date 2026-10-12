@@ -46,7 +46,7 @@ describe('suggestFromText', () => {
 
   it('does not reach back across a wide gap to unrelated words', () => {
     const items = [item('Andante', 112, SYS0_TOP - 12, 13, 40), item('(}=63-66)', 300, SYS0_TOP - 12, 13, 60)]; // 148 pt apart
-    expect(suggestFromText(page(...items), piece())[0]).toMatchObject({ measure: 1 });
+    expect(suggestFromText(page(...items), piece()).find((x) => x.kind === 'tempo' && x.bpm === 63)).toMatchObject({ measure: 1 }); // the word keeps its own spot (by name)
   });
 
   it('treats "calmando" as a gentle slow-down', () => {
@@ -158,5 +158,19 @@ describe('applySuggestions', () => {
     expect(p.tempos).toEqual([{ at: 0, bpm: 80, unit: { den: 4, dotted: false } }, { at: 3, bpm: 90, unit: { den: 4, dotted: false } }]);
     expect(p.meters.find((m) => m.at === 0)?.meter).toEqual({ num: 6, den: 8, grouping: [3, 3] });
     expect(p.ramps).toHaveLength(1);
+  });
+});
+
+describe('tempo words', () => {
+  const ms = [{ id: 'a', page: 0, rect: { x: 0.05, y: 0.3, w: 0.4, h: 0.1 } }, { id: 'b', page: 0, rect: { x: 0.45, y: 0.3, w: 0.4, h: 0.1 } }];
+  const piece = { measures: ms, tempos: [], meters: [] };
+  const word = (str: string, x: number) => ({ str, x, y: 200, w: 40, size: 12 });
+  it('maps a lone tempo name to its usual speed', () => {
+    const s = suggestFromText([{ page: 0, width: 600, height: 800, items: [word('Allegro', 40), word('Vivace', 90)] }], piece);
+    expect(s).toMatchObject([{ kind: 'tempo', measure: 0, bpm: 150, low: true }]);
+  });
+  it('lets an explicit mark in the same measure win over the name', () => {
+    const s = suggestFromText([{ page: 0, width: 600, height: 800, items: [word('Andante', 40), word('♩ = 63', 100)] }], piece);
+    expect(s.filter((x) => x.kind === 'tempo')).toMatchObject([{ bpm: 63 }]);
   });
 });

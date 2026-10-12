@@ -13,7 +13,7 @@ export type Word = { text: string; x0: number; y0: number; x1: number; y1: numbe
 export function wordsToItems(words: Word[], scale: number, origin: { x: number; y: number }): TextItem[] {
   // Tesseract often reports confidence 0 for a tempo mark it read correctly, so words that look like one are always kept
   // (and a note symbol with its equals sign comes out as junk like "(}=" at confidence 0, but the = is what joins it to the number)
-  const meaningful = (t: string) => t.includes('=') || /\b(rit|rall|accel|allarg|string|tempo|calm)/i.test(t);
+  const meaningful = (t: string) => t.includes('=') || /\b(rit|rall|accel|allarg|string|tempo|calm|adagio|andant|allegr|moderato|vivace|presto|largo|lento|grave|maestoso)/i.test(t);
   const good = words.filter((w) => /[\p{L}\p{N}=]/u.test(w.text) && (w.confidence >= 35 || meaningful(w.text)));
 
   // Group into printed lines first (word boxes on one line differ in height and bottom edge, so ordering by bottom edge swaps

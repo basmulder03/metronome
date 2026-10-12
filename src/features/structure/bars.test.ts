@@ -32,3 +32,11 @@ describe('numbering restarts at a part', () => {
     expect(barLabels(ms)).toEqual(['1', '2–4', '1', '2']);
   });
 });
+
+describe('upbeats are bar 0', () => {
+  it('numbers an opening upbeat 0 and the first full bar 1, also at a restarting part', async () => {
+    const { barLabels } = await import('./bars');
+    const ms = [{ marks: { pickup: 1 } }, {}, { marks: { part: { name: 'II', restart: true }, pickup: 1 } }, {}, { marks: { pickup: 1 } }];
+    expect(barLabels(ms)).toEqual(['0', '1', '0', '1', '2']); // a pickup in the middle of a piece is an ordinary bar
+  });
+});

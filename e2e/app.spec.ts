@@ -130,9 +130,9 @@ test('toolbar does not shift the score when a measure is selected', async ({ pag
   const px = await openAndMark(page);
   void px;
   await page.locator('.box').first().click();
-  const y0 = (await page.locator('.page').boundingBox())!.y;
+  const y0 = (await page.locator('.titlebar').boundingBox())!.y; // the settings float over the page: nothing around the score moves
   await page.locator('.box').nth(3).click();
-  expect((await page.locator('.page').boundingBox())!.y).toBe(y0);
+  expect((await page.locator('.titlebar').boundingBox())!.y).toBe(y0);
 });
 
 async function wavSeconds(page: Page) {

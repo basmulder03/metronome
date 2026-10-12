@@ -76,7 +76,7 @@ test.describe('keyboard', () => {
     await expect(help).toBeHidden();
 
     await page.keyboard.press('Escape'); // deselect
-    await expect(page.getByText('Select a measure box')).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Measure settings' })).toHaveCount(0); // the settings close with the selection
   });
 
   test('Space plays from the selected measure and stops again', async ({ page }) => {
@@ -151,6 +151,7 @@ test.describe('dragging', () => {
 
   test('a drag that starts on an unselected box selects it', async ({ page }) => {
     await detected(page);
+    await page.locator('.box').nth(6).scrollIntoViewIfNeeded(); // the page is wider without a side panel, so this box starts below the fold
     const box = (await page.locator('.box').nth(6).boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();

@@ -490,7 +490,7 @@
 {#if current}
   <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
     {#if app.selected >= 0}<Button size="sm" onclick={() => run({ type: 'tidy' })} title="Same top and height for the whole row, bars connected (T)">Tidy row</Button>{/if}
-    <Button size="sm" disabled={!doc} onclick={() => (preview = !preview)} aria-pressed={preview} title="Show the piece the way someone sees it from a share link, without your PDF">{preview ? 'Back to score' : 'Preview share view'}</Button>
+    <Button size="sm" disabled={!doc} onclick={() => (preview = !preview)} aria-pressed={preview} title="Show the piece the way someone sees it from a share link, without your PDF">{preview ? 'Back to score' : 'See share view'}</Button>
     <span class="saved" aria-live="polite">{savedText}</span>
     {#if parts.length}
       <label class="part">Part
@@ -519,7 +519,7 @@
       <MeasureStrip />
     {/if}
   </div>
-  <Sheet><Inspector onplay={play} /><StructureEditor /></Sheet>
+  <Sheet hidden={!!doc && !preview && mode !== 'select'}><Inspector onplay={play} /><StructureEditor /></Sheet>
 </main>
 </div>
 
@@ -546,8 +546,7 @@
   @media (min-width: 900px) {
     header { position: sticky; top: 0; }
     .shell { height: 100vh; }
-    main { grid-template-columns: 1fr 340px; flex: 1; min-height: 0; }
-    main > :global(aside), .score { overflow: auto; }
-    .score { padding-bottom: var(--space-2); }
+    main { flex: 1; min-height: 0; }
+    .score { overflow: auto; }
   }
 </style>

@@ -158,12 +158,12 @@
   const label = (i: number) => boxLabel(app.piece, i);
   const inRamp = (i: number) => rampOf(app.piece, i);
 
-  // On a phone the inspector is a bottom sheet over the lower part of the page: keep the box you picked above it.
+  // The settings sit over the lower part of the screen: keep the box you picked above it.
   $effect(() => {
     if (app.selected < 0 || app.playing >= 0) return;
     queueMicrotask(() => {
       const el = overlay?.querySelector<HTMLElement>('.box.sel');
-      if (!el || !matchMedia('(max-width: 899px)').matches) return;
+      if (!el || drag || mode !== 'select') return; // never move the page under a drag or while drawing, when the settings are hidden anyway
       const r = el.getBoundingClientRect();
       if (r.bottom > innerHeight * 0.55 || r.top < 0) el.scrollIntoView({ block: 'center', behavior: 'auto' });
     });

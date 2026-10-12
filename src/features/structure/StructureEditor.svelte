@@ -48,8 +48,8 @@
 </script>
 
 {#if m}
-  <section>
-    <h4>Parts of this sheet</h4>
+  <details class="sec" open>
+    <summary>Parts of this sheet</summary>
     <p class="mut">If one sheet holds several parts (movements, sections), mark where each starts and name it. Playback can then stop after each part, or play straight through.</p>
     <label class="check"><input type="checkbox" checked={!!k.part} onchange={(e) => startPart(e.currentTarget.checked)} /> A new part starts at this measure</label>
     {#if k.part}
@@ -60,10 +60,10 @@
       <label class="check"><input type="checkbox" checked={!!k.part.pause} onchange={(e) => setMark(m, 'part', { ...k.part!, pause: e.currentTarget.checked || undefined })} /> Always stop after this part, even when playing straight through</label>
       <label class="check"><input type="checkbox" checked={!!k.part.restart} onchange={(e) => setMark(m, 'part', { ...k.part!, restart: e.currentTarget.checked || undefined })} /> Bar numbers start again at 1 here</label>
     {/if}
-  </section>
+  </details>
 
-  <section>
-    <h4>Multi-measure rest</h4>
+  <details class="sec" open>
+    <summary>Multi-measure rest</summary>
     <p class="mut">A long rest printed as one box with a number over it stands for that many bars. Enter the number so the click runs for all of them; later boxes then carry the printed bar numbers.</p>
     <div class="row">
       <label>Bars in this rest
@@ -71,10 +71,10 @@
           onchange={(e) => setMark(m, 'multirest', +e.currentTarget.value >= 2 ? Math.min(999, Math.floor(+e.currentTarget.value)) : undefined)} />
       </label>
     </div>
-  </section>
+  </details>
 
-  <section>
-    <h4>Length and holds</h4>
+  <details class="sec" open>
+    <summary>Length and holds</summary>
     <p class="mut">For an upbeat, mark the first bar as "only the last beats". A piece that began with one usually ends with a bar that is "only the first beats", which completes it.</p>
     <div class="row">
       <label>Written part of this bar
@@ -101,10 +101,10 @@
         </label>
       {/if}
     </div>
-  </section>
+  </details>
 
-  <section>
-    <h4>Repeats and jumps</h4>
+  <details class="sec" open>
+    <summary>Repeats and jumps</summary>
     <label class="check"><input type="checkbox" checked={!!k.repeatStart} onchange={(e) => setMark(m, 'repeatStart', e.currentTarget.checked)} /> Repeat starts here</label>
     <div class="row">
       <label class="check"><input type="checkbox" checked={!!k.repeatEnd} onchange={(e) => setMark(m, 'repeatEnd', e.currentTarget.checked ? 2 : undefined)} /> Repeat ends here</label>
@@ -138,12 +138,13 @@
       <label class="check"><input type="checkbox" checked={!!k.toCoda} onchange={(e) => setMark(m, 'toCoda', e.currentTarget.checked)} /> To coda</label>
       <label class="check"><input type="checkbox" checked={!!k.coda} onchange={(e) => setMark(m, 'coda', e.currentTarget.checked)} /> Coda</label>
     </div>
-  </section>
+  </details>
 {/if}
 
 <style>
-  section { border-top: 1px solid var(--border); padding: var(--space-3) 0; display: grid; gap: var(--space-2); }
+  .sec { border-top: 1px solid var(--border); padding: var(--space-2) 0; }
+  .sec > :global(:not(summary)) { margin-top: var(--space-2); }
+  summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fg-muted); min-height: 28px; }
   fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
   legend { font-size: var(--font-sm); color: var(--fg-muted); padding: 0; margin-bottom: var(--space-1); }
-  h4 { margin: 0 0 var(--space-1); font-size: 13px; color: var(--fg-muted); }
 </style>

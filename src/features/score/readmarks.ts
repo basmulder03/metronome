@@ -1,6 +1,7 @@
 import type { Measure, Piece, Unit } from '../../shared/types';
 import { DEFAULT_BPM } from '../../shared/types';
 import { defaultGrouping } from '../tempo-map/timeline';
+import { tempoByName } from './tempoNames';
 
 /** A run of text from a PDF page, in PDF points with the origin at the page's top-left (y is the baseline). */
 export type TextItem = { str: string; x: number; y: number; w: number; size: number };
@@ -123,6 +124,27 @@ export function suggestFromText(pages: PageText[], piece: Pick<Piece, 'measures'
       const { unit, guess } = noteUnit(glyph, meter?.num ?? 4, meter?.den ?? 4);
       const label = `${unit.dotted ? '♩.' : unit.den === 4 ? '♩' : unit.den === 8 ? '♪' : '𝅗𝅥'} = ${bpm}${guess ? ' (beat unit guessed)' : ''}`;
       add({ id: '', kind: 'tempo', measure: at, bpm, unit, text: label, low: guess }, p.page, it.y, left, at, it.size);
+    }
+
+    // a tempo given only by name ("Allegro"): the usual speed for that word, unless a "♩ = n" mark already sits in the same measure.
+    // Words on one printed line are read together so "Allegro Vivace" is one name, not "Allegro".
+    const lines: TextItem[][] = [];
+    for (const it of [...p.items].sort((a, b) => a.y - b.y || a.x - b.x)) {
+      const line = lines.find((l) => Math.abs(l[0].y - it.y) < Math.max(it.size, l[0].size) * 0.6);
+      line ? line.push(it) : lines.push([it]);
+    }
+    for (const line of lines) {
+      line.sort((a, b) => a.x - b.x);
+      const hit = tempoByName(line.map((w) => w.str).join(' '));
+      if (!hit) continue;
+      const first = line.find((w) => hit.name.split(' ')[0] === w.str.toLowerCase().replace(/[^\p{L}]/gu, ''));
+      if (!first) continue;
+      const at = locate(measures, p.page, nx(first.x + 1), ny(first.y), true);
+      if (at < 0 || found.some((f) => f.kind === 'tempo' && f.measure === at && !f.text.includes('(by name)'))) continue;
+      const meter = found.filter((f) => f.kind === 'meter' && f.measure <= at).at(-1) as { num: number; den: number } | undefined;
+      const { unit } = noteUnit(undefined, meter?.num ?? 4, meter?.den ?? 4);
+      const bpm = unit.dotted ? Math.round(hit.bpm / 1.5) : hit.bpm;
+      add({ id: '', kind: 'tempo', measure: at, bpm, unit, text: `${hit.name} ≈ ${bpm} (by name)`, low: true }, p.page, first.y, first.x, at, first.size);
     }
 
     // rit./accel. words and "a tempo"

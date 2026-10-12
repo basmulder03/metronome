@@ -72,8 +72,8 @@
   </div>
   <p class="mut">In force: {meter.num}/{meter.den} ({meter.grouping.join('+')}) · {tempoAt(p, i)?.bpm ?? DEFAULT_BPM} bpm</p>
 
-  <section>
-    <h4>Time signature</h4>
+  <details class="sec" open>
+    <summary>Time signature</summary>
     {#if meterEv}
       <div class="row">
         <label>Beats<input type="number" min="1" max="32" bind:value={meterEv.meter.num} onchange={resize} /></label>
@@ -85,10 +85,10 @@
     {:else}
       <Button onclick={addMeter}>Change time signature here</Button>
     {/if}
-  </section>
+  </details>
 
-  <section>
-    <h4>Tempo</h4>
+  <details class="sec" open>
+    <summary>Tempo</summary>
     {#if tempoEv}
       <div class="row">
         <label>BPM<input type="number" min="20" max="400" bind:value={tempoEv.bpm} /></label>
@@ -105,10 +105,10 @@
     {:else}
       <Button onclick={addTempo}>Set tempo here</Button>
     {/if}
-  </section>
+  </details>
 
-  <section>
-    <h4>Accelerando / rallentando</h4>
+  <details class="sec" open>
+    <summary>Accelerando / rallentando</summary>
     {#if ramp}
       <div class="row">
         <label>Last measure<input type="number" min={i + 1} max={maxRampEnd(p, i) + 1} value={ramp.to + 1}
@@ -129,7 +129,7 @@
         <Button onclick={() => addRamp(0.75)}>Rallentando from here</Button>
       </div>
     {/if}
-  </section>
+  </details>
 
 {:else}
   <p class="mut">Select a measure box to edit its time signature, tempo or accel/rall.</p>
@@ -137,8 +137,9 @@
 
 <style>
   .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
-  h3, h4 { margin: 0 0 4px; }
-  h4 { font-size: 13px; color: var(--fg-muted); }
-  section { border-top: 1px solid var(--border); padding: 12px 0; display: grid; gap: 8px; }
+  h3 { margin: 0 0 4px; }
+  .sec { border-top: 1px solid var(--border); padding: var(--space-2) 0; }
+  .sec > :global(:not(summary)) { margin-top: var(--space-2); }
+  summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fg-muted); min-height: 28px; }
   .bad { border-color: var(--danger); }
 </style>
