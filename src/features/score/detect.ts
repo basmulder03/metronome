@@ -2,9 +2,12 @@ import type { Rect } from '../../shared/types';
 
 export type Bitmap = { data: Uint8ClampedArray; width: number; height: number };
 
+// Thin printed lines turn mid-grey when a scan is shrunk to screen size, so "dark" has to be generous. Barlines still need to be
+// dark along the whole staff height, which keeps noise from counting.
+const DARK = 200;
 const dark = (b: Bitmap, x: number, y: number) => {
   const i = (y * b.width + x) * 4;
-  return b.data[i + 3] > 0 && (b.data[i] + b.data[i + 1] + b.data[i + 2]) / 3 < 140;
+  return b.data[i + 3] > 0 && (b.data[i] + b.data[i + 1] + b.data[i + 2]) / 3 < DARK;
 };
 
 /** Consecutive indices where `on` is true -> [start, end] runs. */
@@ -67,7 +70,16 @@ export function detectMeasures(b: Bitmap): Rect[] {
       for (let y = y0; y <= y1; y++) if (dark(b, x, y)) n++;
       return n >= (y1 - y0 + 1) * 0.9;
     });
-    const bars = runs(xe - xs + 1, (i) => isBar(xs + i)).map(([a, z]) => xs + (a + z) / 2);
+    const candidates = runs(xe - xs + 1, (i) => isBar(xs + i)).map(([a, z]) => xs + (a + z) / 2);
+    // A stem can span one staff, but only a real barline also bridges the gap between the staves of a grand staff.
+    const bridges = (x: number) => sys.slice(1).every(([a], k) => {
+      const y0 = Math.round(sys[k][1]), y1 = Math.round(a);
+      let n = 0;
+      for (let y = y0; y <= y1; y++) if (dark(b, Math.round(x), y)) n++;
+      return n >= (y1 - y0 + 1) * 0.9;
+    });
+    const connected = sys.length > 1 ? candidates.filter(bridges) : candidates;
+    const bars = connected.length >= 2 ? connected : candidates; // engravings without connected barlines keep every candidate
 
     // 4. boundaries: system edges plus barlines, merging any closer than 3 spacings (double/thick barlines, repeat dots)
     const bounds = [xs];

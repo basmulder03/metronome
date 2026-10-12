@@ -9,12 +9,19 @@
 
   let canvas: HTMLCanvasElement;
 
-  let rendering: Promise<void> = Promise.resolve();
-
-  /** Pixels of the rendered page, for barline detection. Waits for any render in flight so it never reads a stale page. */
-  export async function bitmap() {
-    await rendering;
-    return canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+  /**
+   * Pixels of the current page for barline detection, rendered offscreen at a fixed width so the result does not depend on
+   * the screen: on a phone the displayed page is so small that a scan's thin staff lines all but vanish.
+   */
+  export async function bitmap(width = 1400) {
+    if (!doc) throw new Error('no document');
+    const page = await doc.getPage(pageNum + 1);
+    const viewport = page.getViewport({ scale: width / page.getViewport({ scale: 1 }).width });
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(viewport.width);
+    c.height = Math.ceil(viewport.height);
+    await page.render({ canvas: c, viewport }).promise;
+    return c.getContext('2d')!.getImageData(0, 0, c.width, c.height);
   }
 
   let overlay: HTMLDivElement;
@@ -26,7 +33,7 @@
     let task: RenderTask | undefined;
     let dead = false;
     const width = zoom; // read here so the effect re-runs when zoom changes
-    rendering = (async () => {
+    void (async () => {
       const page = await doc.getPage(pageNum + 1);
       if (dead) return;
       const base = page.getViewport({ scale: 1 });
