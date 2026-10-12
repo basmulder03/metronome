@@ -1,4 +1,5 @@
 import type { Curve, Meter, Piece, Unit } from '../../shared/types';
+import { barsIn } from '../structure/bars';
 import { type Part, partIndexOf, partsOf } from '../structure/parts';
 import { unroll } from '../structure/unroll';
 import { DEFAULT_BPM, DEFAULT_METER, DEFAULT_UNIT } from '../../shared/types';
@@ -113,8 +114,9 @@ const SUBSTEPS = 16;
 export function buildTimeline(p: Piece): Timeline {
   const n = p.measures.length;
   const meters = Array.from({ length: n }, (_, m) => meterAt(p, m));
-  const spans = p.measures.map((_, m) => spanOf(p, m));
-  const lenQ = meters.map((mt, m) => ((spans[m][1] - spans[m][0]) * 4) / mt.den);
+  const rests = p.measures.map(barsIn); // a multi-measure rest is several whole bars under one box
+  const spans = p.measures.map((_, m) => (rests[m] > 1 ? ([0, meters[m].num] as [number, number]) : spanOf(p, m)));
+  const lenQ = meters.map((mt, m) => (rests[m] * (spans[m][1] - spans[m][0]) * 4) / mt.den);
   const startQ: number[] = [];
   lenQ.reduce((acc, l, m) => ((startQ[m] = acc), acc + l), 0);
 
@@ -147,13 +149,13 @@ export function buildTimeline(p: Piece): Timeline {
     const accents = accentsOf(meters[m]);
     const [first, last] = spans[m]; // a pickup sounds only the last beats of the meter, a short bar only the first
     const fermata = p.measures[m].marks?.fermata;
-    for (let k = first; k < last; k++) {
+    for (let bar = 0; bar < rests[m]; bar++) for (let k = first; k < last; k++) {
       beats.push({ time, measure: m, step: s, accent: accents[k] });
       // midpoint rule over the step: 60/qpm integrated across the quarter-note span
       const h = step / SUBSTEPS;
       let dt = 0;
-      for (let j = 0; j < SUBSTEPS; j++) dt += (60 / qpmAt(m, startQ[m] + (k - first) * step + (j + 0.5) * h)) * h;
-      time += fermata?.beat === k ? dt * Math.max(1, fermata.factor) : dt;
+      for (let j = 0; j < SUBSTEPS; j++) dt += (60 / qpmAt(m, startQ[m] + (bar * (last - first) + (k - first)) * step + (j + 0.5) * h)) * h;
+      time += fermata?.beat === k && rests[m] === 1 ? dt * Math.max(1, fermata.factor) : dt;
     }
   }
   const parts = partsOf(p.measures);

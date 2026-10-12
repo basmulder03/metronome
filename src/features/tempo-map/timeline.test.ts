@@ -229,3 +229,28 @@ describe('stopping at the end of a part', () => {
     expect(firstStepOf(tl, 0)).toBe(0);
   });
 });
+
+describe('multi-measure rests', () => {
+  const rest = (n: number, at: number) => { const p = piece(4); p.tempos.push({ at: 0, bpm: 120, unit: q }); p.measures[at].marks = { multirest: n }; return p; };
+
+  it('one box counts as N whole bars, each with its own downbeat', () => {
+    const tl = buildTimeline(rest(8, 1));
+    expect(tl.duration).toBeCloseTo((1 + 8 + 1 + 1) * 2); // bar, eight bars of rest, bar, bar
+    expect(tl.steps[2].time).toBeCloseTo(18); // the box after the rest starts when all eight bars are over
+    expect(tl.beats.filter((b) => b.measure === 1 && b.accent === 2)).toHaveLength(8);
+    expect(tl.beats.filter((b) => b.measure === 1)).toHaveLength(32);
+  });
+
+  it('keeps one step per box, so the playhead stays on the rest while it lasts', () => {
+    const tl = buildTimeline(rest(8, 1));
+    expect(tl.steps.map((s) => s.measure)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('tempo and a ramp that cross a rest stay continuous', () => {
+    const p = rest(4, 1);
+    p.tempos[0].bpm = 60;
+    p.ramps.push({ from: 0, to: 2, startBpm: 60, endBpm: 120, curve: [0, 0, 1, 1] }); // 1 + 4 + 1 = 6 bars = 24 quarters
+    // bpm(q) = 60 (1 + q/24): the time to cross the 24 quarters is the integral of 60/bpm, which is 24 ln 2
+    expect(buildTimeline(p).steps[3].time).toBeCloseTo(24 * Math.LN2, 2);
+  });
+});

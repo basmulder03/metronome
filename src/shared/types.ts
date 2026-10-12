@@ -20,6 +20,8 @@ export type Marks = {
   pickup?: number;
   /** This measure starts a new part (a movement or section of one sheet). `pause`: playback stops after the part even when set to play on. */
   part?: { name: string; pause?: boolean };
+  /** A multi-measure rest: this one box stands for N bars of silence (printed as a number over a long rest). */
+  multirest?: number;
   /** Short bar: only the first N beats are present (it ends early, e.g. the last bar of a piece that began with a pickup). */
   partial?: number;
   /** Hold one beat (0-based unit index in the full meter) for `factor` times its length. */

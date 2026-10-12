@@ -4,6 +4,7 @@
   import { tapBpm } from './tap';
   import { defaultGrouping, maxRampEnd, meterAt, parseGrouping, rampCovering, tempoAt } from './timeline';
   import { DEFAULT_BPM, DEFAULT_UNIT, type Ramp } from '../../shared/types';
+  import { barHeading, barLabels } from '../structure/bars';
   import CurveEditor from './CurveEditor.svelte';
   import { app } from '../../shared/store.svelte';
 
@@ -20,6 +21,7 @@
 
   const p = $derived(app.piece);
   const i = $derived(app.selected);
+  const bars = $derived(barLabels(p.measures));
   const meterEv = $derived(p.meters.find((e) => e.at === i));
   const tempoEv = $derived(p.tempos.find((e) => e.at === i));
   const ramp = $derived(p.ramps.find((r) => r.from === i));
@@ -65,7 +67,7 @@
 
 {#if i >= 0 && p.measures[i]}
   <div class="head">
-    <h3>Measure {i + 1}</h3>
+    <h3>{barHeading(bars[i])}</h3>
     <Button size="sm" onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete box</Button>
   </div>
   <p class="mut">In force: {meter.num}/{meter.den} ({meter.grouping.join('+')}) · {tempoAt(p, i)?.bpm ?? DEFAULT_BPM} bpm</p>
