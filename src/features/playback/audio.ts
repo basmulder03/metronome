@@ -51,16 +51,20 @@ export class Player {
   onMeasure: (m: number) => void = () => {};
   onStop: () => void = () => {};
   playing = false;
+  /** Settles after play(): true when the range finished by itself, false when stopped early. */
+  whenDone: Promise<boolean> = Promise.resolve(false);
+  private settle: (completed: boolean) => void = () => {};
 
-  /** Play measures from..to (inclusive), optionally looping. Must be called from a user gesture. */
+  /** Play measures from..to (inclusive), optionally looping; resolves true once started. Must be called from a user gesture. */
   /** `pre` is an optional count-in (beats with negative times relative to the first played beat), sounded once. */
-  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts, pre: Beat[] = []) {
+  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts, pre: Beat[] = []): Promise<boolean> {
     this.stop(false);
     this.ctx ??= new AudioContext();
     await this.ctx.resume();
     const ctx = this.ctx;
     const [i0, iEnd] = beatRange(tl, from, to);
-    if (i0 < 0 || iEnd <= i0) return;
+    if (i0 < 0 || iEnd <= i0) return false;
+    this.whenDone = new Promise((res) => (this.settle = res));
     const t0 = tl.beats[i0].time;
     const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
     const span = tEnd - t0;
@@ -79,7 +83,7 @@ export class Player {
         if (++i >= iEnd) {
           if (!loop) {
             clearInterval(this.timer);
-            this.endTimer = window.setTimeout(() => this.stop(), (origin + span - ctx.currentTime) * 1000 + 100);
+            this.endTimer = window.setTimeout(() => this.stop(true, true), (origin + span - ctx.currentTime) * 1000 + 100);
             return;
           }
           i = i0; lap++;
@@ -95,20 +99,24 @@ export class Player {
       this.raf = requestAnimationFrame(frame);
     };
     frame();
+    return true;
   }
 
-  stop(notify = true) {
+  stop(notify = true, completed = false) {
     clearInterval(this.timer);
     clearTimeout(this.endTimer);
     cancelAnimationFrame(this.raf);
     if (this.ctx) { void this.ctx.close(); this.ctx = undefined; } // closing silences clicks already scheduled
     if (this.playing && notify) this.onStop();
+    if (this.playing) this.settle(completed);
     this.playing = false;
   }
 }
 
-/** Render measures from..to to a mono 16-bit WAV, faster than real time and entirely in the browser. */
-export async function renderWav(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = [], sampleRate = 44100): Promise<Blob> {
+export const SAMPLE_RATE = 44100;
+
+/** Render measures from..to to mono samples, faster than real time and entirely in the browser. */
+export async function renderPcm(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = [], sampleRate = SAMPLE_RATE): Promise<Float32Array> {
   const [i0, iEnd] = beatRange(tl, from, to);
   const t0 = tl.beats[i0].time;
   const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
@@ -116,16 +124,28 @@ export async function renderWav(tl: Timeline, from: number, to: number, opts: Cl
   const ctx = new OfflineAudioContext(1, Math.ceil((lead + tEnd - t0 + 0.5) * sampleRate), sampleRate);
   for (const b of pre) if (b.accent) click(ctx, lead + b.time, b.accent);
   for (const b of tl.beats.slice(i0, iEnd)) if (audible(b.accent, opts)) click(ctx, lead + b.time - t0, b.accent);
-  return encodeWav(await ctx.startRendering());
+  return (await ctx.startRendering()).getChannelData(0);
 }
 
-function encodeWav(buf: AudioBuffer): Blob {
-  const data = buf.getChannelData(0);
+export async function renderWav(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = []): Promise<Blob> {
+  return wavBlob(await renderPcm(tl, from, to, opts, pre), SAMPLE_RATE);
+}
+
+/** Join pieces of audio with silence between them. */
+export function concatPcm(parts: Float32Array[], gapSeconds: number, sampleRate = SAMPLE_RATE): Float32Array {
+  const gap = Math.round(gapSeconds * sampleRate);
+  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0) + gap * Math.max(0, parts.length - 1));
+  let o = 0;
+  parts.forEach((p, i) => { out.set(p, o); o += p.length + (i < parts.length - 1 ? gap : 0); });
+  return out;
+}
+
+export function wavBlob(data: Float32Array, sampleRate: number): Blob {
   const out = new DataView(new ArrayBuffer(44 + data.length * 2));
   const str = (o: number, s: string) => [...s].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
   str(0, 'RIFF'); out.setUint32(4, 36 + data.length * 2, true); str(8, 'WAVEfmt ');
   out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
-  out.setUint32(24, buf.sampleRate, true); out.setUint32(28, buf.sampleRate * 2, true);
+  out.setUint32(24, sampleRate, true); out.setUint32(28, sampleRate * 2, true);
   out.setUint16(32, 2, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, data.length * 2, true);
   data.forEach((s, i) => out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, s)) * 0x7fff, true));
   return new Blob([out], { type: 'audio/wav' });
