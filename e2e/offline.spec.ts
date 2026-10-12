@@ -12,6 +12,15 @@ test('manifest is valid and installable', async ({ page, request }) => {
   expect(m.icons.some((i: { purpose?: string }) => i.purpose === 'maskable')).toBe(true);
 });
 
+test('the image decoders for scanned scores are available offline', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  // JBIG2 and JPEG 2000 pages cannot be drawn without these; they are small, so they are cached with the app
+  for (const file of ['jbig2.wasm', 'openjpeg.wasm']) {
+    await expect.poll(() => page.evaluate(async (f) => !!(await caches.match(`/pdfjs/wasm/${f}`, { ignoreSearch: true })), file), { message: file }).toBe(true);
+  }
+});
+
 test('works offline after the first visit, including a saved piece and its PDF', async ({ page, context }) => {
   await page.goto('/');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
