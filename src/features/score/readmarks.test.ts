@@ -31,6 +31,29 @@ describe('suggestFromText', () => {
     expect(s[0]).toMatchObject({ kind: 'tempo', bpm: 96, unit: { den: 4, dotted: false } });
   });
 
+  it('reads a tempo mark with a range and a closing bracket, as OCR returns "(♪=63-66)"', () => {
+    const s = suggestFromText(page(item('(}=63-66)', 104, SYS0_TOP - 12, 13, 60)), piece());
+    expect(s[0]).toMatchObject({ kind: 'tempo', measure: 0, bpm: 63 });
+    expect(s[0].low).toBe(true); // the symbol was junk: the beat unit is a guess
+  });
+
+  it('a tempo mark applies from the first word of its instruction, not from the number', () => {
+    // boxes: bar 1 is x 107-256 pt, bar 2 is 256-405. The words start over bar 1; the "= 63-66" lands over bar 2.
+    // sizes as a real scan reports them: inconsistent from word to word on the same line
+    const items = [item('Andante', 112, SYS0_TOP - 11, 8, 35), item('Maestoso', 190, SYS0_TOP - 12, 15, 39), item('=63-66)', 262, SYS0_TOP - 12, 13, 30)];
+    expect(suggestFromText(page(...items), piece())[0]).toMatchObject({ kind: 'tempo', measure: 0, bpm: 63 });
+  });
+
+  it('does not reach back across a wide gap to unrelated words', () => {
+    const items = [item('Andante', 112, SYS0_TOP - 12, 13, 40), item('(}=63-66)', 300, SYS0_TOP - 12, 13, 60)]; // 148 pt apart
+    expect(suggestFromText(page(...items), piece())[0]).toMatchObject({ measure: 1 });
+  });
+
+  it('treats "calmando" as a gentle slow-down', () => {
+    const items = [item('q', 104, SYS0_TOP - 12, 13, 5), item('=100', 110, SYS0_TOP - 12), item('calmando', 0.43 * W, SYS0_TOP - 12, 13, 50)];
+    expect(suggestFromText(page(...items), piece()).find((x) => x.kind === 'ramp')).toMatchObject({ startBpm: 100, endBpm: 85 });
+  });
+
   it('guesses the beat unit (and says so) when the glyph is unknown, dotted for compound meters', () => {
     const p = piece();
     const s = suggestFromText(page(item('Z', 104, SYS0_TOP - 12, 13, 5), item('=60', 110, SYS0_TOP - 12)), p);

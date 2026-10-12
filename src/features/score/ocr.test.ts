@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece, type Measure } from '../../shared/types';
-import { bandsAbove, wordsToItems, type Word } from './ocr';
+import { bandsAbove, stripsFor, wordsToItems, type Word } from './ocr';
 import { suggestFromText } from './readmarks';
 
 const w = (text: string, x0: number, x1: number, y1 = 30, confidence = 90): Word => ({ text, x0, x1, y0: y1 - 12, y1, confidence });
@@ -22,6 +22,18 @@ describe('wordsToItems', () => {
     expect(items.map((i) => i.str)).toEqual(['F=130', 'molto', 'rall.']);
   });
 
+  it('keeps a mangled note symbol with its equals sign so a tempo mark still reads', () => {
+    // Tesseract's reading of "(♪ = 63-66)" on a real scan: junk plus "=" at confidence 0, then the number
+    const items = wordsToItems([w('Andante', 10, 80, 30, 95), w('(}=', 150, 200, 30, 0), w('63-66)', 206, 270, 30, 96)], 1, { x: 0, y: 0 });
+    expect(items.map((i) => i.str)).toEqual(['Andante', '(}=63-66)']);
+  });
+
+  it('reads a line left to right even when the word boxes have different bottom edges', () => {
+    // the number's box ends a little above the symbol's: ordering by bottom edge would put "72)" first
+    const items = wordsToItems([w('72)', 206, 260, 28, 96), w('(}=', 150, 200, 31, 0), w('Allegretto', 10, 140, 31, 95)], 1, { x: 0, y: 0 });
+    expect(items.map((i) => i.str)).toEqual(['Allegretto', '(}=72)']);
+  });
+
   it('keeps distant words apart and drops low-confidence noise', () => {
     const items = wordsToItems([w('Am', 10, 40), w('D7', 300, 330), w('xq', 100, 120, 30, 10)], 1, { x: 0, y: 0 });
     expect(items.map((i) => i.str)).toEqual(['Am', 'D7']);
@@ -36,6 +48,17 @@ describe('wordsToItems', () => {
     const s = suggestFromText([{ page: 0, width: 595, height: 842, items }], piece);
     expect(s.find((x) => x.kind === 'tempo')).toMatchObject({ measure: 0, bpm: 130, low: true }); // glyph unreadable: unit guessed
     expect(s.find((x) => x.kind === 'ramp')).toMatchObject({ from: 1, startBpm: 130 });
+  });
+});
+
+describe('stripsFor', () => {
+  it('reads each strip twice: whole, and without its lower part where stems poke in', () => {
+    const strips = stripsFor([{ y0: 0.2, y1: 0.3 }, { y0: 0.5, y1: 0.6 }]);
+    expect(strips).toHaveLength(4);
+    expect(strips[0]).toEqual({ y0: 0.2, y1: 0.3 });
+    expect(strips[1].y0).toBe(0.2);
+    expect(strips[1].y1).toBeCloseTo(0.262);
+    expect(strips[2]).toEqual({ y0: 0.5, y1: 0.6 });
   });
 });
 

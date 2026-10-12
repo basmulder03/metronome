@@ -12,22 +12,38 @@ export type Word = { text: string; x0: number; y0: number; x1: number; y1: numbe
  */
 export function wordsToItems(words: Word[], scale: number, origin: { x: number; y: number }): TextItem[] {
   // Tesseract often reports confidence 0 for a tempo mark it read correctly, so words that look like one are always kept
-  const meaningful = (t: string) => /=\s*\d{2,3}/.test(t) || /\b(rit|rall|accel|allarg|string|tempo)/i.test(t);
-  const good = words.filter((w) => /[\p{L}\p{N}=]/u.test(w.text) && (w.confidence >= 35 || meaningful(w.text))).sort((a, b) => a.y1 - b.y1 || a.x0 - b.x0);
-  const out: TextItem[] = [];
-  let cur: { text: string; x0: number; x1: number; y1: number; h: number } | null = null;
-  const flush = () => {
-    if (!cur) return;
-    out.push({ str: cur.text, x: origin.x + cur.x0 / scale, y: origin.y + cur.y1 / scale, w: (cur.x1 - cur.x0) / scale, size: (cur.h / scale) * 1.15 });
-    cur = null;
-  };
-  for (const w of good) {
-    const h = w.y1 - w.y0;
-    const joins = cur && (w.text.startsWith('=') || cur.text.endsWith('=')) && w.x0 - cur.x1 < Math.max(h, cur.h) * 1.2 && Math.abs(w.y1 - cur.y1) < Math.max(h, cur.h);
-    if (cur && joins) { cur.text += w.text; cur.x1 = w.x1; cur.h = Math.max(cur.h, h); }
-    else { flush(); cur = { text: w.text, x0: w.x0, x1: w.x1, y1: w.y1, h }; }
+  // (and a note symbol with its equals sign comes out as junk like "(}=" at confidence 0, but the = is what joins it to the number)
+  const meaningful = (t: string) => t.includes('=') || /\b(rit|rall|accel|allarg|string|tempo|calm)/i.test(t);
+  const good = words.filter((w) => /[\p{L}\p{N}=]/u.test(w.text) && (w.confidence >= 35 || meaningful(w.text)));
+
+  // Group into printed lines first (word boxes on one line differ in height and bottom edge, so ordering by bottom edge swaps
+  // neighbours: "72)" before "=" ), then read each line left to right.
+  const lines: Word[][] = [];
+  for (const w of [...good].sort((a, b) => a.y0 + a.y1 - (b.y0 + b.y1))) {
+    const cy = (w.y0 + w.y1) / 2, h = w.y1 - w.y0;
+    const line = lines.find((l) => {
+      const lcy = l.reduce((s, x) => s + (x.y0 + x.y1) / 2, 0) / l.length;
+      return Math.abs(cy - lcy) < Math.max(h, ...l.map((x) => x.y1 - x.y0)) * 0.6;
+    });
+    if (line) line.push(w); else lines.push([w]);
   }
-  flush();
+
+  const out: TextItem[] = [];
+  for (const line of lines) {
+    let cur: { text: string; x0: number; x1: number; y1: number; h: number } | null = null;
+    const flush = () => {
+      if (!cur) return;
+      out.push({ str: cur.text, x: origin.x + cur.x0 / scale, y: origin.y + cur.y1 / scale, w: (cur.x1 - cur.x0) / scale, size: (cur.h / scale) * 1.15 });
+      cur = null;
+    };
+    for (const w of line.sort((a, b) => a.x0 - b.x0)) {
+      const h = w.y1 - w.y0;
+      const joins = cur && (w.text.startsWith('=') || cur.text.endsWith('=')) && w.x0 - cur.x1 < Math.max(h, cur.h) * 1.2;
+      if (cur && joins) { cur.text += w.text; cur.x1 = w.x1; cur.h = Math.max(cur.h, h); }
+      else { flush(); cur = { text: w.text, x0: w.x0, x1: w.x1, y1: w.y1, h }; }
+    }
+    flush();
+  }
   return out;
 }
 
@@ -48,6 +64,15 @@ export function bandsAbove(measures: Measure[], page: number): Band[] {
   });
 }
 
+/**
+ * What to read above each system: the whole strip, and a second one without its lower part. High notes push their stems and beams up
+ * into the strip, and where they touch a tempo mark they turn its digits into garbage; the upper part is clear of them more often.
+ * Both are read and the reader keeps whatever makes sense.
+ */
+export function stripsFor(bands: Band[]): Band[] {
+  return bands.flatMap((b) => [b, { y0: b.y0, y1: b.y0 + (b.y1 - b.y0) * 0.62 }]);
+}
+
 /** Where the OCR engine lives (see scripts/copy-assets.mjs). */
 const BASE = '/ocr/';
 
@@ -63,7 +88,7 @@ export async function ocrPages(
 ): Promise<PageText[]> {
   const pages = [...new Set(measures.map((m) => m.page))].sort((a, b) => a - b);
   const jobs = pages.map((p) => ({ p, bands: bandsAbove(measures, p) }));
-  const total = jobs.reduce((n, j) => n + j.bands.length, 0);
+  const total = jobs.reduce((n, j) => n + stripsFor(j.bands).length, 0);
   const { createWorker, PSM } = await import('tesseract.js');
   const worker = await createWorker('eng', 1, { workerPath: `${BASE}worker.min.js`, corePath: BASE, langPath: BASE, gzip: true, workerBlobURL: false });
   await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: '1' });
@@ -81,7 +106,7 @@ export async function ocrPages(
       full.height = Math.ceil(viewport.height);
       await page.render({ canvas: full, viewport }).promise;
       const items: TextItem[] = [];
-      for (const b of bands) {
+      for (const b of stripsFor(bands)) {
         const py = Math.floor(b.y0 * full.height), ph = Math.max(8, Math.ceil((b.y1 - b.y0) * full.height));
         const strip = document.createElement('canvas');
         strip.width = full.width;

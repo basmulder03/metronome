@@ -25,6 +25,7 @@ const RAMP_WORDS: { re: RegExp; factor: number; label: string }[] = [
   { re: /\b(rit|ritard|ritardando|rall|rallent|rallentando|allarg|allargando)\b\.?/i, factor: 0.7, label: 'rall.' },
   { re: /\bmolto\s+accel/i, factor: 1.4, label: 'molto accel.' },
   { re: /\b(accel|accelerando|string|stringendo)\b\.?/i, factor: 1.25, label: 'accel.' },
+  { re: /\bcalmando\b/i, factor: 0.85, label: 'calmando' },
 ];
 const A_TEMPO = /\b(a\s+tempo|tempo\s+primo|tempo\s+i\b)/i;
 
@@ -102,13 +103,20 @@ export function suggestFromText(pages: PageText[], piece: Pick<Piece, 'measures'
     // tempo marks: "= 130", with the note glyph just before it (as its own item or inside the same string)
     for (const it of p.items) {
       // "♩ = 130" anywhere in the run (OCR can glue neighbouring text to it); the glyph is whatever is just before the "="
-      const t = /^(?:.*\s)?(\S{0,3})\s*=\s*(\d{2,3})(?:\s*[-–]\s*\d{2,3})?(?:\s.*)?$/.exec(it.str);
+      const t = /^(?:.*\s)?(\S{0,3})\s*=\s*(\d{2,3})(?:\s*[-–]\s*\d{2,3})?[)\]]?(?:\s.*)?$/.exec(it.str);
       if (!t) continue;
       const bpm = +t[2];
       if (bpm < 20 || bpm > 400) continue;
       const prev = p.items.filter((o) => o !== it && o.str.trim().length <= 3 && Math.abs(o.y - it.y) < it.size * 0.4 && it.x - (o.x + o.w) < it.size * 0.6 && it.x - (o.x + o.w) > -it.size * 0.3).sort((a, b) => b.x - a.x)[0];
       const glyph = t[1].trim() || prev?.str;
-      const left = t[1].trim() ? it.x : prev?.x ?? it.x;
+      let left = t[1].trim() ? it.x : prev?.x ?? it.x;
+      // "Andante Maestoso (♪=63-66)": the instruction starts at its first word, not at the number
+      for (;;) {
+        // (OCR reports inconsistent heights for words on one line, so the reach uses the largest involved)
+        const word = p.items.filter((o) => o !== it && /^\p{L}{3,}[.,]?$/u.test(o.str.trim()) && Math.abs(o.y - it.y) < Math.max(o.size, it.size) * 0.8 && o.x < left && left - (o.x + o.w) < Math.max(o.size, it.size) * 3.5).sort((a, b) => b.x - a.x)[0];
+        if (!word) break;
+        left = word.x;
+      }
       const at = locate(measures, p.page, nx(left + 1), ny(it.y), true);
       if (at < 0) continue;
       const meter = found.filter((f) => f.kind === 'meter' && f.measure <= at).at(-1) as { num: number; den: number } | undefined;
