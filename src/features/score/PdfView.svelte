@@ -21,6 +21,7 @@
   let aspect = $state(1.41);
 
   $effect(() => {
+    canvas.removeAttribute('data-ready'); // synchronously: a switched piece must never look ready while the old page is shown
     if (!doc) return;
     let task: RenderTask | undefined;
     let dead = false;
@@ -36,7 +37,7 @@
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       task = page.render({ canvas, viewport });
-      await task.promise.catch(() => {}); // cancelled renders reject
+      await task.promise.then(() => { if (!dead) canvas.dataset.ready = '1'; }, () => {}); // cancelled renders reject; data-ready marks a finished page (used by tests)
     })();
     return () => { dead = true; task?.cancel(); void width; };
   });

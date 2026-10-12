@@ -64,3 +64,15 @@ describe('validatePiece', () => {
     ['not an object', 42],
   ])('rejects %s', (_n, x) => expect(validatePiece(x)).toBeNull());
 });
+
+describe('copyright guard', () => {
+  it('a share payload never contains PDF data, only the whitelisted markup fields', async () => {
+    const p = sample();
+    // even if something sneaks onto the piece object, validation strips it and the payload stays tiny
+    Object.assign(p, { pdf: 'JVBERi0xLjQK'.repeat(1000), blob: 'x'.repeat(5000) });
+    const code = await encodeShare('Étude', p);
+    const out = (await decodeShare(code))!;
+    expect(Object.keys(out.piece).sort()).toEqual(['countIn', 'measures', 'meters', 'ramps', 'tempos']);
+    expect(JSON.stringify(out.piece)).not.toContain('JVBERi'); // base64 PDF header
+  });
+});

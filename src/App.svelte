@@ -12,6 +12,8 @@
   import { codeFromHash, decodeShare } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
   import { emptyPiece } from './shared/types';
+  import PlaylistPanel from './features/playlist/PlaylistPanel.svelte';
+  import { initPlaylists } from './features/playlist/playlist.svelte';
   import LibraryPanel from './features/library/LibraryPanel.svelte';
   import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, saveCurrent } from './features/library/library.svelte';
   import Button from './shared/ui/Button.svelte';
@@ -32,6 +34,7 @@
   let status = $state('');
 
   let libraryPanel: LibraryPanel;
+  let playlistPanel: PlaylistPanel;
   let saveTimer = 0;
   // Autosave: reading the whole piece makes this re-run on any markup edit; writes are debounced.
   $effect(() => {
@@ -64,6 +67,7 @@
   // Restore the last piece (with its PDF) on startup.
   void (async () => {
     await init();
+    await initPlaylists();
     const id = lastId();
     if (id && entry(id)) await openEntry(id);
     await importFromHash();
@@ -101,9 +105,11 @@
 
   async function open(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
-    const f = input.files?.[0];
+    const picked = input.files?.[0];
+    if (!picked) return;
+    // read the bytes before resetting the input: clearing it can release the File, and reading afterwards may fail
+    const f = Object.assign(new Blob([await picked.arrayBuffer()], { type: 'application/pdf' }), { name: picked.name });
     input.value = ''; // allow picking the same file again
-    if (!f) return;
     const cur = entry(lib.currentId);
     if (cur && !cur.hasPdf) { // a piece without a PDF (e.g. from a shared link) gets this one
       await attachPdf(cur.id, f);
@@ -117,10 +123,9 @@
 
   async function play(from: number, to: number, loop: boolean) {
     if (!app.piece.measures.length) return;
-    playing = true;
     const tl = timeline();
     const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to)[0], app.piece.countIn ?? 0);
-    await player.play(tl, from, to, loop, { subdivide }, pre);
+    playing = await player.play(tl, from, to, loop, { subdivide }, pre);
   }
   const playFromSelected = () => play(Math.max(app.selected, 0), app.piece.measures.length - 1, false);
 
@@ -156,6 +161,7 @@
 <header>
   <label class="file">{entry(lib.currentId) && !entry(lib.currentId)?.hasPdf ? 'Attach PDF' : 'Open PDF'}<input type="file" accept="application/pdf" onchange={open} hidden /></label>
   <Button onclick={() => libraryPanel.show()}>Library</Button>
+  <Button onclick={() => playlistPanel.show()}>Playlists</Button>
   <span class="grp">
     <Button disabled={pageNum === 0} onclick={() => pageNum--} aria-label="Previous page">‹</Button>
     <span>{pageNum + 1}/{pages}</span>
@@ -208,9 +214,10 @@
     </div>
   {/if}
 </dialog>
+<PlaylistPanel bind:this={playlistPanel} {subdivide} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
 {#if status}<p class="status" role="status">{status}</p>{/if}
-<main>
+<main data-piece={lib.currentId ?? ""}>
   <div class="score">
     {#if doc || app.piece.measures.length === 0}
       <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} />
