@@ -18,6 +18,8 @@ export type Marks = {
   jump?: 'dc' | 'ds';
   /** Pickup measure: only the last N beats (in 1/den units) of the meter are present. */
   pickup?: number;
+  /** Short bar: only the first N beats are present (it ends early, e.g. the last bar of a piece that began with a pickup). */
+  partial?: number;
   /** Hold one beat (0-based unit index in the full meter) for `factor` times its length. */
   fermata?: { beat: number; factor: number };
 };

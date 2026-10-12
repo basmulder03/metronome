@@ -47,6 +47,15 @@ describe('share codec', () => {
 });
 
 describe('validatePiece', () => {
+  it('keeps an upbeat and a short bar, drops nonsense counts', () => {
+    const x = JSON.parse(JSON.stringify(sample()));
+    x.measures[0].marks = { pickup: 1, partial: 3 };
+    x.measures[1].marks = { pickup: 0, partial: 999 };
+    const p = validatePiece(x)!;
+    expect(p.measures[0].marks).toEqual({ pickup: 1, partial: 3 });
+    expect(p.measures[1].marks).toBeUndefined();
+  });
+
   it('drops unknown keys and bad marks, keeps good ones', () => {
     const x = JSON.parse(JSON.stringify(sample()));
     x.measures[0].marks = { repeatEnd: 999, evil: true, segno: true };

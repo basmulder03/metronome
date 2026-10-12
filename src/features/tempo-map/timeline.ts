@@ -51,9 +51,24 @@ export function countIn(p: Piece, tl: Timeline, i0: number, bars: number): Beat[
   const next = tl.beats[i0 + 1];
   const unit = next ? next.time - b0.time : 0.6;
   const accents = accentsOf(mt);
+  // A pickup completes the count: for N beats of pickup the count-in is N beats shorter, so "1 2 3" is followed by the pickup on "4".
+  const [start] = spanOf(p, b0.measure); // the pickup sits on beat `start` of the bar, so the count supplies the beats before it
+  const total = bars * mt.num - (start > 0 ? mt.num - start : 0);
   const out: Beat[] = [];
-  for (let i = 0; i < bars * mt.num; i++) out.push({ time: -(bars * mt.num - i) * unit, measure: b0.measure, step: -1, accent: accents[i % mt.num] });
+  for (let i = 0; i < total; i++) out.push({ time: -(total - i) * unit, measure: b0.measure, step: -1, accent: accents[i % mt.num] });
   return out;
+}
+
+/**
+ * The beats of measure m's meter that are written, as [start, end). A pickup (upbeat) starts late: the last N beats of the meter.
+ * A short bar ends early: the first N beats. Anything else is the whole bar.
+ */
+export function spanOf(p: Piece, m: number): [number, number] {
+  const { num } = meterAt(p, m);
+  const k = p.measures[m]?.marks;
+  const start = k?.pickup && k.pickup < num ? num - Math.max(1, k.pickup) : 0;
+  const end = k?.partial && k.partial < num ? Math.max(1, k.partial) : num;
+  return start < end ? [start, end] : [0, num];
 }
 
 export const meterAt = (p: Piece, m: number): Meter => last(p.meters, m)?.meter ?? DEFAULT_METER;
@@ -73,8 +88,8 @@ const SUBSTEPS = 16;
 export function buildTimeline(p: Piece): Timeline {
   const n = p.measures.length;
   const meters = Array.from({ length: n }, (_, m) => meterAt(p, m));
-  const present = (m: number) => Math.min(meters[m].num, Math.max(1, p.measures[m].marks?.pickup ?? meters[m].num));
-  const lenQ = meters.map((mt, m) => (present(m) * 4) / mt.den);
+  const spans = p.measures.map((_, m) => spanOf(p, m));
+  const lenQ = meters.map((mt, m) => ((spans[m][1] - spans[m][0]) * 4) / mt.den);
   const startQ: number[] = [];
   lenQ.reduce((acc, l, m) => ((startQ[m] = acc), acc + l), 0);
 
@@ -105,9 +120,9 @@ export function buildTimeline(p: Piece): Timeline {
     const { num, den } = meters[m];
     const step = 4 / den;
     const accents = accentsOf(meters[m]);
-    const first = num - present(m); // a pickup measure sounds only the last beats of the meter
+    const [first, last] = spans[m]; // a pickup sounds only the last beats of the meter, a short bar only the first
     const fermata = p.measures[m].marks?.fermata;
-    for (let k = first; k < num; k++) {
+    for (let k = first; k < last; k++) {
       beats.push({ time, measure: m, step: s, accent: accents[k] });
       // midpoint rule over the step: 60/qpm integrated across the quarter-note span
       const h = step / SUBSTEPS;

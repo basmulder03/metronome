@@ -14,6 +14,7 @@ function marks(v: unknown): Marks | undefined {
   if (Array.isArray(v.volta) && v.volta.length <= 4 && v.volta.every((n) => int(n, 1, 8))) out.volta = v.volta as number[];
   if (v.jump === 'dc' || v.jump === 'ds') out.jump = v.jump;
   if (int(v.pickup, 1, 64)) out.pickup = v.pickup;
+  if (int(v.partial, 1, 64)) out.partial = v.partial;
   if (isObj(v.fermata) && int(v.fermata.beat, 0, 63) && num(v.fermata.factor, 1, 16)) out.fermata = { beat: v.fermata.beat, factor: v.fermata.factor };
   return Object.keys(out).length ? out : undefined;
 }

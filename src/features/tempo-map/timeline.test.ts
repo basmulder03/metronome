@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece, type Piece } from '../../shared/types';
-import { buildTimeline, countIn, ease, maxRampEnd, parseGrouping, rampCovering } from './timeline';
+import { buildTimeline, countIn, ease, maxRampEnd, parseGrouping, rampCovering, spanOf } from './timeline';
 
 const piece = (n: number): Piece => {
   const p = emptyPiece();
@@ -120,5 +120,61 @@ describe('ramp ranges', () => {
     expect(maxRampEnd(p, 0)).toBe(1); // must stop before the ramp that starts at measure 2
     expect(maxRampEnd(p, 5)).toBe(6);
     expect(maxRampEnd(p, 8)).toBe(9); // nothing after it: up to the last measure
+  });
+});
+
+describe('upbeats and short bars', () => {
+  const q4 = { den: 4, dotted: false };
+  const at = (bpm = 120) => { const p = piece(3); p.tempos.push({ at: 0, bpm, unit: q4 }); return p; };
+
+  it('spanOf says which beats of the bar are written', () => {
+    const p = piece(4);
+    p.measures[0].marks = { pickup: 1 };
+    p.measures[1].marks = { partial: 3 };
+    p.measures[2].marks = { pickup: 1, partial: 3 }; // both: beats 4 only? no: from beat 4 to beat 3 is empty, so the whole bar
+    expect(spanOf(p, 0)).toEqual([3, 4]);
+    expect(spanOf(p, 1)).toEqual([0, 3]);
+    expect(spanOf(p, 2)).toEqual([0, 4]);
+    expect(spanOf(p, 3)).toEqual([0, 4]);
+  });
+
+  it('a short bar ends early and keeps the beat accents of the start', () => {
+    const p = at();
+    p.measures[2].marks = { partial: 2 };
+    const tl = buildTimeline(p);
+    expect(tl.steps[2].time).toBeCloseTo(4); // two full bars of 2 s
+    expect(tl.duration).toBeCloseTo(4 + 1); // then a bar of two beats
+    expect(tl.beats.filter((b) => b.measure === 2).map((b) => b.accent)).toEqual([2, 1]);
+  });
+
+  it('an upbeat piece that ends with the completing short bar adds up to whole bars', () => {
+    const p = at();
+    p.measures[0].marks = { pickup: 1 }; // beat 4
+    p.measures[2].marks = { partial: 3 }; // beats 1-3
+    expect(buildTimeline(p).duration).toBeCloseTo(0.5 + 2 + 1.5); // 1 + 4 + 3 beats at 0.5 s
+  });
+
+  it('the count-in for an upbeat is one pickup shorter, so the pickup completes the count', () => {
+    const p = at();
+    p.measures[0].marks = { pickup: 1 };
+    const tl = buildTimeline(p);
+    const pre = countIn(p, tl, 0, 1);
+    expect(pre.map((b) => b.accent)).toEqual([2, 1, 1]); // "1 2 3", then the pickup is "4"
+    expect(pre.map((b) => b.time)).toEqual([-1.5, -1, -0.5]);
+    expect(countIn(p, tl, 0, 2)).toHaveLength(7); // 8 beats minus the one the pickup supplies
+  });
+
+  it('a pickup in 6/8 leaves the count-in aligned to the second group', () => {
+    const p = piece(2);
+    p.meters.push({ at: 0, meter: { num: 6, den: 8, grouping: [3, 3] } });
+    p.tempos.push({ at: 0, bpm: 60, unit: { den: 4, dotted: true } });
+    p.measures[0].marks = { pickup: 3 }; // the last three eighths
+    const pre = countIn(p, buildTimeline(p), 0, 1);
+    expect(pre.map((b) => b.accent)).toEqual([2, 0, 0]); // the first group, then the pickup is the second
+  });
+
+  it('a bar without marks counts in a whole bar, as before', () => {
+    const p = at();
+    expect(countIn(p, buildTimeline(p), 0, 1)).toHaveLength(4);
   });
 });
