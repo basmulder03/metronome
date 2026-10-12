@@ -245,7 +245,8 @@
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
 {#if status}<p class="status" role="status">{status}</p>{/if}
 <main data-piece={lib.currentId ?? ""}>
-  <div class="score">
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
+  <div class="score" role="region" aria-label="Score" tabindex="0">
     {#if doc || app.piece.measures.length === 0}
       <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} />
     {:else}
