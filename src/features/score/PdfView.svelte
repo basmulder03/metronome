@@ -1,0 +1,130 @@
+<script lang="ts">
+  import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
+  import type { Measure, Rect } from '../../shared/types';
+  import { app } from '../../shared/store.svelte';
+  import { insertMeasures, splitMeasure } from './markup';
+
+  let { doc, pageNum, zoom, mode }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select' } = $props();
+
+  let canvas: HTMLCanvasElement;
+
+  /** Pixels of the rendered page, for barline detection. */
+  export function bitmap() {
+    return canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  let overlay: HTMLDivElement;
+  let aspect = $state(1.41);
+
+  $effect(() => {
+    if (!doc) return;
+    let task: RenderTask | undefined;
+    let dead = false;
+    const width = zoom; // read here so the effect re-runs when zoom changes
+    void (async () => {
+      const page = await doc.getPage(pageNum + 1);
+      if (dead) return;
+      const base = page.getViewport({ scale: 1 });
+      aspect = base.height / base.width;
+      // Render at the displayed pixel width (x devicePixelRatio) to keep memory small on phones.
+      const target = overlay.clientWidth * Math.min(window.devicePixelRatio, 2);
+      const viewport = page.getViewport({ scale: target / base.width });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      task = page.render({ canvas, viewport });
+      await task.promise.catch(() => {}); // cancelled renders reject
+    })();
+    return () => { dead = true; task?.cancel(); void width; };
+  });
+
+  // Reading order: later page, lower system, or further right within the same system.
+  const isAfter = (a: Measure, b: Measure) =>
+    a.page !== b.page ? a.page > b.page
+    : Math.abs(a.rect.y - b.rect.y) < b.rect.h / 2 ? a.rect.x > b.rect.x
+    : a.rect.y > b.rect.y;
+
+  function insertMeasure(m: Measure) {
+    const ms = app.piece.measures;
+    const at = ms.findIndex((x) => isAfter(x, m));
+    const idx = at < 0 ? ms.length : at;
+    insertMeasures(app.piece, idx, [m]);
+    app.selected = idx;
+  }
+
+  const norm = (e: PointerEvent | MouseEvent) => {
+    const r = overlay.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  };
+
+  let start: { x: number; y: number } | null = null;
+  let ghost = $state<Rect | null>(null);
+  const rectOf = (a: { x: number; y: number }, b: { x: number; y: number }): Rect => ({
+    x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y),
+  });
+
+  function down(e: PointerEvent) {
+    if (mode !== 'draw') return;
+    start = norm(e);
+    overlay.setPointerCapture(e.pointerId);
+  }
+  const move = (e: PointerEvent) => { if (start) ghost = rectOf(start, norm(e)); };
+  function up(e: PointerEvent) {
+    if (!start) return;
+    const r = rectOf(start, norm(e));
+    start = ghost = null;
+    if (r.w > 0.02 && r.h > 0.01) insertMeasure({ id: crypto.randomUUID(), page: pageNum, rect: r });
+  }
+
+  function pick(e: MouseEvent, i: number) {
+    if (mode === 'split') {
+      if (splitMeasure(app.piece, i, norm(e).x, crypto.randomUUID())) app.selected = i;
+    } else app.selected = i;
+  }
+
+  const here = $derived(app.piece.measures.map((m, i) => ({ m, i })).filter(({ m }) => m.page === pageNum));
+  const label = (i: number) => {
+    const out: string[] = [];
+    const mt = app.piece.meters.find((e) => e.at === i);
+    const tp = app.piece.tempos.find((e) => e.at === i);
+    if (mt) out.push(`${mt.meter.num}/${mt.meter.den}`);
+    if (tp) out.push(`${tp.unit.dotted ? '♩.' : tp.unit.den === 4 ? '♩' : tp.unit.den === 8 ? '♪' : '𝅗𝅥'}=${tp.bpm}`);
+    const r = app.piece.ramps.find((x) => x.from === i);
+    if (r) out.push(r.endBpm > r.startBpm ? 'accel.' : 'rall.');
+    return out.join(' ');
+  };
+  const inRamp = (i: number) => app.piece.ramps.some((r) => r.from <= i && i <= r.to);
+
+  // Follow playback: scroll the active box into view.
+  $effect(() => {
+    if (app.playing >= 0) overlay.querySelector('.box.playing')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+</script>
+
+<div role="application" aria-label="Score" class="page" bind:this={overlay} style:width="{zoom * 100}%" style:aspect-ratio={1 / aspect}
+  class:drawing={mode === 'draw'} onpointerdown={down} onpointermove={move} onpointerup={up}>
+  <canvas bind:this={canvas}></canvas>
+  {#each here as { m, i } (m.id)}
+    <button type="button" class="box" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(i)}
+      style:left="{m.rect.x * 100}%" style:top="{m.rect.y * 100}%" style:width="{m.rect.w * 100}%" style:height="{m.rect.h * 100}%"
+      onclick={(e) => pick(e, i)}>
+      <span class="n">{i + 1}</span><span class="tag">{label(i)}</span>
+    </button>
+  {/each}
+  {#if ghost}<div class="box ghost" style:left="{ghost.x * 100}%" style:top="{ghost.y * 100}%" style:width="{ghost.w * 100}%" style:height="{ghost.h * 100}%"></div>{/if}
+  {#if !doc}<p class="empty">Open a PDF to start.</p>{/if}
+</div>
+
+<style>
+  .page { position: relative; max-width: 100%; background: #fff; margin: 0 auto; }
+  .page.drawing { touch-action: none; cursor: crosshair; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .box { position: absolute; padding: 0; min-height: 0; border: 1px solid rgba(59, 91, 219, 0.5); border-radius: 2px; background: rgba(59, 91, 219, 0.06); text-align: left; transition: background 0.12s; }
+  .page.drawing .box { pointer-events: none; }
+  .box.ramp { background: rgba(240, 140, 0, 0.12); border-color: rgba(240, 140, 0, 0.6); }
+  .box.sel { outline: 2px solid #3b5bdb; }
+  .box.playing { background: rgba(47, 158, 68, 0.35); border-color: #2f9e44; }
+  .ghost { border-style: dashed; pointer-events: none; }
+  .n { position: absolute; top: -1px; left: 2px; font-size: 10px; font-weight: 700; color: #3b5bdb; }
+  .tag { position: absolute; bottom: 0; left: 2px; font-size: 10px; color: #c2255c; white-space: nowrap; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #666; margin: 0; }
+</style>
