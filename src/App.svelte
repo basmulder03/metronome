@@ -11,6 +11,7 @@
   import ReadMarksDialog from './features/score/ReadMarksDialog.svelte';
   import { applySuggestions, suggestFromText, type PageText, type Suggestion } from './features/score/readmarks';
   import { readPageText } from './features/score/textlayer';
+  import { ocrPages } from './features/score/ocr';
   import PdfView from './features/score/PdfView.svelte';
   import { codeFromHash, decodeShare } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
@@ -180,6 +181,7 @@
   }
 
   let found = $state<Suggestion[] | null>(null);
+  let ocrOffer = $state(false);
   let readDialog = $state<ReadMarksDialog>();
 
   /** Look for tempo marks, time signatures and rit./accel. words in the PDF's own text; the user reviews them before anything changes. */
@@ -190,14 +192,35 @@
     for (let i = 0; i < doc.numPages; i++) if (app.piece.measures.some((m) => m.page === i)) texts.push(await readPageText(doc, i));
     const s = suggestFromText(texts, app.piece);
     if (!s.length) {
-      status = texts.every((t) => !t.items.length)
-        ? 'This PDF has no text layer (it is probably a scan), so there is nothing to read. Set tempos and time signatures in the editor.'
-        : 'No tempo marks, time signatures or rit./accel. words found. Set them in the editor.';
+      if (texts.every((t) => !t.items.length)) {
+        ocrOffer = true;
+        status = 'This PDF has no text layer (it looks like a scan). OCR can read tempo marks and rit./accel. words from it, but not time signatures.';
+      } else status = 'No tempo marks, time signatures or rit./accel. words found. Set them in the editor.';
       return;
     }
+    showFound(s);
+  }
+
+  function showFound(s: Suggestion[]) {
     status = '';
+    ocrOffer = false;
     found = s;
     queueMicrotask(() => readDialog?.show());
+  }
+
+  /** Scanned PDFs: read the strip above each system with OCR (the engine downloads once and is then cached). */
+  async function readWithOcr() {
+    if (!doc) return;
+    ocrOffer = false;
+    status = 'Loading the OCR engine (first time only)…';
+    try {
+      const texts = await ocrPages(doc, app.piece.measures, (d, t) => (status = `Reading the page text… ${d}/${t}`));
+      const s = suggestFromText(texts, app.piece);
+      if (s.length) showFound(s);
+      else status = 'OCR found no tempo marks or rit./accel. words. Set them in the editor.';
+    } catch {
+      status = 'OCR could not run (is the connection down on the first use?). Set tempos in the editor.';
+    }
   }
   function addFound(chosen: Suggestion[]) {
     const { applied, skipped } = applySuggestions(app.piece, chosen);
@@ -274,7 +297,12 @@
 {#if found}{#key found}<ReadMarksDialog bind:this={readDialog} suggestions={found} onapply={addFound} oncancel={() => (found = null)} />{/key}{/if}
 <PlaylistPanel bind:this={playlistPanel} {subdivide} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
-{#if status}<p class="status" role="status">{status}</p>{/if}
+{#if status}
+  <div class="status" role="status">
+    <span>{status}</span>
+    {#if ocrOffer}<Button size="sm" onclick={() => void readWithOcr()}>Read with OCR (about 7 MB the first time)</Button>{/if}
+  </div>
+{/if}
 <main data-piece={lib.currentId ?? ""}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
   <div class="score" role="region" aria-label="Score" tabindex="0">
@@ -297,7 +325,7 @@
   .acct .mut { margin: 0; font-size: var(--font-sm); overflow-wrap: anywhere; }
   .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
-  .status { margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
+  .status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); max-width: min(420px, calc(100vw - 2 * var(--space-4))); }
   dialog::backdrop { background: var(--scrim); }
   main { display: grid; grid-template-columns: 1fr; }
