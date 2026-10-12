@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { makePdf } from './make-pdf.mjs';
+// (structure tests below reuse openAndMark)
 
 const PDF = "e2e/score.pdf";
 test.beforeAll(() => makePdf('e2e/score.pdf'));
@@ -128,4 +129,65 @@ test('toolbar does not shift the score when a measure is selected', async ({ pag
   const y0 = (await page.locator('.page').boundingBox())!.y;
   await page.locator('.box').nth(3).click();
   expect((await page.locator('.page').boundingBox())!.y).toBe(y0);
+});
+
+async function wavSeconds(page: Page) {
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export WAV' }).click();
+  const buf = readFileSync((await (await dl).path())!);
+  return buf.readUInt32LE(40) / 2 / buf.readUInt32LE(24);
+}
+
+async function setTempo(page: Page, bpm: string) {
+  await page.locator('.box').nth(0).click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  await page.getByLabel('BPM').first().fill(bpm);
+}
+
+test('repeat sign doubles the exported click track and shows on the score', async ({ page }) => {
+  await openAndMark(page);
+  await setTempo(page, '120'); // 4 bars = 8 s
+  await page.locator('.box').nth(3).click();
+  await page.getByLabel('Repeat ends here').check();
+  await expect(page.locator('.box').nth(3)).toContainText(':|');
+  expect(await wavSeconds(page)).toBeCloseTo(16.5, 0); // 8 s x 2 + 0.5 s tail
+  await page.getByLabel('Plays in total').fill('3');
+  await page.getByLabel('Plays in total').blur();
+  expect(await wavSeconds(page)).toBeCloseTo(24.5, 0);
+});
+
+test('D.C. al Fine ends at the Fine measure', async ({ page }) => {
+  await openAndMark(page);
+  await setTempo(page, '120');
+  await page.locator('.box').nth(1).click();
+  await page.getByLabel('Fine', { exact: true }).check();
+  await page.locator('.box').nth(3).click();
+  await page.getByLabel('Jump after this measure').selectOption('dc');
+  await expect(page.locator('.box').nth(3)).toContainText('D.C.');
+  expect(await wavSeconds(page)).toBeCloseTo(12.5, 0); // bars 1-4 then 1-2 = 6 bars x 2 s + tail
+});
+
+test('playhead follows the played order through a repeat', async ({ page }) => {
+  await openAndMark(page);
+  await setTempo(page, '400'); // 0.6 s per bar
+  await page.locator('.box').nth(3).click();
+  await page.getByLabel('Repeat ends here').check();
+  await page.locator('.box').nth(0).click();
+  await page.getByRole('button', { name: /^Play/ }).click();
+  const seq: string[] = [];
+  const t0 = Date.now();
+  while (Date.now() - t0 < 5400) {
+    const n = await page.locator('.box.playing .n').first().textContent({ timeout: 200 }).catch(() => null);
+    if (n && seq.at(-1) !== n) seq.push(n);
+    await page.waitForTimeout(30);
+  }
+  expect(seq.join('')).toContain('12341234');
+});
+
+test('structure marks survive a reload', async ({ page }) => {
+  await openAndMark(page);
+  await page.locator('.box').nth(2).click();
+  await page.getByLabel('Segno', { exact: true }).check();
+  await page.reload();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('metronome.piece')!).measures[2].marks)).toEqual({ segno: true });
 });
