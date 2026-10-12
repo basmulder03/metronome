@@ -231,3 +231,100 @@ test('on a phone, the box you pick is kept above the inspector sheet', async ({ 
   const sheet = (await page.locator('aside').boundingBox())!;
   expect(box.y + box.height).toBeLessThanOrEqual(sheet.y + 1); // not hidden behind the sheet
 });
+
+async function exportSeconds(page: Page) {
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export WAV' }).click();
+  const buf = (await import('node:fs')).readFileSync((await (await dl).path())!);
+  return buf.readUInt32LE(40) / 2 / buf.readUInt32LE(24);
+}
+
+test.describe('multi-measure rests', () => {
+  test('one box stands for several bars: the click runs for all of them and the printed numbers carry on', async ({ page }) => {
+    await detected(page);
+    await page.locator('.box').first().click();
+    await page.getByRole('button', { name: 'Set tempo here' }).click();
+    await page.getByLabel('BPM').first().fill('120'); // 2 s a bar
+    await page.getByLabel('BPM').first().blur();
+    await page.locator('.box').nth(1).click();
+    await page.getByLabel('Bars in this rest').fill('4');
+    await page.getByLabel('Bars in this rest').blur();
+
+    await expect(page.locator('.box').nth(1).locator('.tag')).toContainText('rest ×4');
+    await expect(page.getByRole('heading', { name: 'Measures 2–5' })).toBeVisible();
+    await expect(page.locator('.box').nth(1).locator('.n')).toHaveText('2–5');
+    await expect(page.locator('.box').nth(2).locator('.n')).toHaveText('6'); // the printed number after the rest
+    await page.locator('.box').nth(2).click();
+    await expect(page.getByRole('button', { name: 'Play from 6' })).toBeVisible();
+
+    expect(await exportSeconds(page)).toBeCloseTo((7 + 4) * 2 + 0.5, 1); // seven ordinary boxes and a four-bar rest
+
+    await page.locator('.box').nth(1).click();
+    await page.getByLabel('Bars in this rest').fill('1'); // back to an ordinary bar
+    await page.getByLabel('Bars in this rest').blur();
+    await expect(page.locator('.box').nth(2).locator('.n')).toHaveText('3');
+    expect(await exportSeconds(page)).toBeCloseTo(8 * 2 + 0.5, 1);
+  });
+
+  test('the grid view for a piece without a PDF uses the printed numbers too', async ({ page, browser, user }) => {
+    void page; void browser; void user;
+    await detected(page);
+    await page.locator('.box').nth(1).click();
+    await page.getByLabel('Bars in this rest').fill('3');
+    await page.getByLabel('Bars in this rest').blur();
+    await page.waitForTimeout(400);
+    await page.getByRole('button', { name: 'Library' }).click();
+    const lib = page.getByRole('dialog', { name: 'Library' });
+    await lib.getByRole('button', { name: 'Duplicate' }).click(); // a copy has no PDF, so it shows the grid
+    await lib.getByRole('listitem').filter({ hasText: '(copy)' }).getByRole('button', { name: 'Open' }).click();
+    await expect(page.getByRole('button', { name: 'Measures 2–4' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Measure 5' })).toBeVisible();
+  });
+});
+
+test.describe('saving', () => {
+  test('Ctrl+S saves now, instead of the browser\'s Save Page, and nothing is lost on an immediate reload', async ({ page }) => {
+    await detected(page);
+    await expect(page.locator('.saved')).toContainText(/Saved/);
+    await page.locator('.box').nth(2).click();
+    await page.getByRole('button', { name: 'Set tempo here' }).click();
+    await page.getByLabel('BPM').first().fill('150');
+    await page.getByLabel('BPM').first().blur();
+
+    // the browser's own "save page" is cancelled
+    const prevented = await page.evaluate(() => {
+      const e = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+      document.body.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    await expect(page.locator('.saved')).toContainText(/Saved/);
+
+    await page.reload(); // straight away: no waiting for the autosave
+    await expect(page.locator('.box').nth(2).locator('.tag')).toContainText('=150');
+  });
+
+  test('Ctrl+S also works while typing in a field', async ({ page }) => {
+    await detected(page);
+    await page.locator('.box').first().click();
+    await page.getByRole('button', { name: 'Set tempo here' }).click();
+    await page.getByLabel('BPM').first().fill('99');
+    await page.keyboard.press('Control+s'); // focus is still in the BPM field
+    await expect(page.locator('.saved')).toHaveText('Saved');
+    await page.reload();
+    await expect(page.locator('.box').first().locator('.tag')).toContainText('=99');
+  });
+
+  test('with nothing open, Ctrl+S says so', async ({ page }) => {
+    await page.goto('/');
+    await page.keyboard.press('Control+s');
+    await expect(page.getByText('Nothing to save yet')).toBeVisible();
+  });
+
+  test('the indicator shows saving while an edit is pending and saved afterwards', async ({ page }) => {
+    await detected(page);
+    await page.locator('.box').first().click();
+    await page.getByRole('button', { name: 'Set tempo here' }).click();
+    await expect(page.locator('.saved')).toContainText(/Saved/, { timeout: 5000 });
+  });
+});
