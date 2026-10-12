@@ -223,3 +223,14 @@ test('pickup shortens the first bar and a fermata stretches a beat', async ({ pa
   await page.getByLabel('Hold ×').blur();
   expect(await wavSeconds(page)).toBeCloseTo(8, 1); // fermata x3 adds two beats (1 s)
 });
+
+test('tap tempo sets the BPM from the tapping speed', async ({ page }) => {
+  await openAndMark(page);
+  await page.locator('.box').first().click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  const tap = page.getByRole('button', { name: 'Tap tempo' });
+  for (let i = 0; i < 6; i++) { await tap.click(); await page.waitForTimeout(500); }
+  const bpm = +(await page.getByLabel('BPM').first().inputValue());
+  expect(bpm).toBeGreaterThan(105); // 500 ms apart is 120, with test timing jitter
+  expect(bpm).toBeLessThan(135);
+});

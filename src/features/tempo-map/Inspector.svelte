@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from '../../shared/ui/Button.svelte';
   import { removeMeasure } from '../score/markup';
+  import { tapBpm } from './tap';
   import { defaultGrouping, meterAt, parseGrouping, tempoAt } from './timeline';
   import { DEFAULT_BPM, DEFAULT_UNIT, type Ramp } from '../../shared/types';
   import CurveEditor from './CurveEditor.svelte';
@@ -37,6 +38,13 @@
     const g = parseGrouping(groupingText, meterEv!.meter.num);
     groupingBad = !g;
     if (g) meterEv!.meter.grouping = g;
+  }
+  let taps: number[] = [];
+  /** Tap in time with the music; sets this measure's BPM. */
+  function tap() {
+    taps = [...taps.slice(-9), performance.now()];
+    const bpm = tapBpm(taps);
+    if (bpm && tempoEv) tempoEv.bpm = bpm;
   }
   function addTempo() {
     const t = tempoAt(p, i);
@@ -83,7 +91,10 @@
           </select>
         </label>
       </div>
-      <Button onclick={() => p.tempos.splice(p.tempos.indexOf(tempoEv), 1)}>Remove tempo</Button>
+      <div class="row">
+        <Button onclick={tap} title="Tap in time with the music">Tap tempo</Button>
+        <Button onclick={() => p.tempos.splice(p.tempos.indexOf(tempoEv), 1)}>Remove tempo</Button>
+      </div>
     {:else}
       <Button onclick={addTempo}>Set tempo here</Button>
     {/if}
