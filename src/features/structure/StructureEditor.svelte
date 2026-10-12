@@ -8,6 +8,26 @@
 
 {#if m}
   <section>
+    <h4>Length and holds</h4>
+    <div class="row">
+      <label>Pickup: beats present
+        <input type="number" min="1" max="32" placeholder="full" value={k.pickup ?? ''} onchange={(e) => setMark(m, 'pickup', +e.currentTarget.value || undefined)} />
+      </label>
+    </div>
+    <div class="row">
+      <label class="check"><input type="checkbox" checked={!!k.fermata} onchange={(e) => setMark(m, 'fermata', e.currentTarget.checked ? { beat: 0, factor: 2 } : undefined)} /> Fermata</label>
+      {#if k.fermata}
+        <label>On beat
+          <input type="number" min="1" max="32" value={k.fermata.beat + 1} onchange={(e) => setMark(m, 'fermata', { ...k.fermata!, beat: Math.max(0, (+e.currentTarget.value || 1) - 1) })} />
+        </label>
+        <label>Hold ×
+          <input type="number" min="1" max="8" step="0.5" value={k.fermata.factor} onchange={(e) => setMark(m, 'fermata', { ...k.fermata!, factor: Math.max(1, +e.currentTarget.value || 2) })} />
+        </label>
+      {/if}
+    </div>
+  </section>
+
+  <section>
     <h4>Repeats and jumps</h4>
     <label class="check"><input type="checkbox" checked={!!k.repeatStart} onchange={(e) => setMark(m, 'repeatStart', e.currentTarget.checked)} /> Repeat starts here</label>
     <div class="row">

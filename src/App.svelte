@@ -1,7 +1,8 @@
 <script lang="ts">
   import * as pdfjs from 'pdfjs-dist';
   import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-  import { Player, renderWav } from './features/playback/audio';
+  import { beatRange, Player, renderWav } from './features/playback/audio';
+  import { countIn } from './features/tempo-map/timeline';
   import { detectMeasures } from './features/score/detect';
   import { insertMeasures, removeMeasure } from './features/score/markup';
   import StructureEditor from './features/structure/StructureEditor.svelte';
@@ -46,7 +47,9 @@
   async function play(from: number, to: number, loop: boolean) {
     if (!app.piece.measures.length) return;
     playing = true;
-    await player.play(timeline(), from, to, loop, { subdivide });
+    const tl = timeline();
+    const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to)[0], app.piece.countIn ?? 0);
+    await player.play(tl, from, to, loop, { subdivide }, pre);
   }
   const playFromSelected = () => play(Math.max(app.selected, 0), app.piece.measures.length - 1, false);
 
@@ -54,7 +57,8 @@
     if (!app.piece.measures.length) return;
     busy = true;
     try {
-      const blob = await renderWav(timeline(), 0, app.piece.measures.length - 1, { subdivide });
+      const tl = timeline();
+      const blob = await renderWav(tl, 0, app.piece.measures.length - 1, { subdivide }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'click-track.wav' });
       a.click();
       URL.revokeObjectURL(a.href);
@@ -103,10 +107,22 @@
     {:else}
       <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${app.selected + 1}` : 'Play'}>Play</Button>
     {/if}
-    <label class="chk"><input type="checkbox" bind:checked={subdivide} /> subdivisions</label>
     <Button disabled={busy} onclick={exportWav}>{busy ? 'Rendering…' : 'Export WAV'}</Button>
   </span>
-  <span class="grp end"><ThemeToggle /></span>
+  <details class="opts end">
+    <summary>Options</summary>
+    <div class="panel">
+      <label class="check"><input type="checkbox" bind:checked={subdivide} /> Click on subdivisions</label>
+      <label>Count-in
+        <select bind:value={app.piece.countIn}>
+          <option value={0}>None</option>
+          <option value={1}>1 bar</option>
+          <option value={2}>2 bars</option>
+        </select>
+      </label>
+      <label>Theme <ThemeToggle /></label>
+    </div>
+  </details>
 </header>
 
 {#if status}<p class="status" role="status">{status}</p>{/if}
@@ -119,8 +135,10 @@
   header { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
   .grp { display: flex; gap: 6px; align-items: center; flex: none; } /* fixed width: a changing label must not re-wrap the header and shift the score */
   .end { margin-left: auto; }
+  .opts { position: relative; }
+  .opts summary { cursor: pointer; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); display: inline-flex; align-items: center; }
+  .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
-  .chk { flex-direction: row; align-items: center; font-size: 13px; }
   .status { margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   main { display: grid; grid-template-columns: 1fr; }
   .score { overflow: auto; padding: var(--space-2); padding-bottom: 45vh; background: var(--surface); } /* room for the phone bottom sheet */
