@@ -2,7 +2,7 @@
   import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
   import type { Measure, Rect } from '../../shared/types';
   import { app } from '../../shared/store.svelte';
-  import { marksLabel } from '../structure/marks';
+  import { boxLabel, inRamp as rampOf } from './labels';
   import { insertMeasures, splitMeasure } from './markup';
 
   let { doc, pageNum, zoom, mode }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select' } = $props();
@@ -86,19 +86,8 @@
   }
 
   const here = $derived(app.piece.measures.map((m, i) => ({ m, i })).filter(({ m }) => m.page === pageNum));
-  const label = (i: number) => {
-    const out: string[] = [];
-    const mt = app.piece.meters.find((e) => e.at === i);
-    const tp = app.piece.tempos.find((e) => e.at === i);
-    if (mt) out.push(`${mt.meter.num}/${mt.meter.den}`);
-    if (tp) out.push(`${tp.unit.dotted ? '♩.' : tp.unit.den === 4 ? '♩' : tp.unit.den === 8 ? '♪' : '𝅗𝅥'}=${tp.bpm}`);
-    const r = app.piece.ramps.find((x) => x.from === i);
-    if (r) out.push(r.endBpm > r.startBpm ? 'accel.' : 'rall.');
-    const mk = marksLabel(app.piece.measures[i]?.marks);
-    if (mk) out.push(mk);
-    return out.join(' ');
-  };
-  const inRamp = (i: number) => app.piece.ramps.some((r) => r.from <= i && i <= r.to);
+  const label = (i: number) => boxLabel(app.piece, i);
+  const inRamp = (i: number) => rampOf(app.piece, i);
 
   // Follow playback: scroll the active box into view.
   $effect(() => {

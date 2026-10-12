@@ -13,6 +13,7 @@
   --accent: light-dark(#3b5bdb, #8ea2ff);
   --accent-fg: light-dark(#ffffff, #0f1226);
   --danger: light-dark(#c92a2a, #ff8787);
+  --warn: light-dark(#e8590c, #ffa94d);
   --shadow: light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.6));
   --scrim: rgb(0 0 0 / 0.5);
 
