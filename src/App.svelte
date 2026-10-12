@@ -30,6 +30,9 @@
   import ThemeToggle from './shared/ui/ThemeToggle.svelte';
 
   let { userId }: { userId: string } = $props();
+  // a piece left in the store by the guest view must not show up as scratch work in the editor
+  app.piece = emptyPiece();
+  app.selected = -1;
   // this account's own local database and remembered state, before anything reads them
   // svelte-ignore state_referenced_locally -- Root remounts this component (a {#key}) when the account changes
   useDatabase(`metronome-${userId}`);
@@ -296,7 +299,7 @@
 </dialog>
 {#if found}{#key found}<ReadMarksDialog bind:this={readDialog} suggestions={found} onapply={addFound} oncancel={() => (found = null)} />{/key}{/if}
 <PlaylistPanel bind:this={playlistPanel} {subdivide} />
-<LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
+<LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} />
 {#if status}
   <div class="status" role="status">
     <span>{status}</span>
