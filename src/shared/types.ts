@@ -4,8 +4,22 @@ export type Rect = { x: number; y: number; w: number; h: number };
 /** Cubic-bezier easing, CSS-style: control points (x1,y1) and (x2,y2). */
 export type Curve = [x1: number, y1: number, x2: number, y2: number];
 
-/** Playing order == array order. Repeats/jumps come in a later phase. */
-export type Measure = { id: string; page: number; rect: Rect };
+/** Repeat/jump markup on a measure; `unroll` turns it into the playing order. */
+export type Marks = {
+  repeatStart?: boolean;
+  /** Total plays of the repeated section (2 = play twice). */
+  repeatEnd?: number;
+  /** First/second ending: the measure plays only on these passes. */
+  volta?: number[];
+  segno?: boolean;
+  coda?: boolean;
+  fine?: boolean;
+  toCoda?: boolean;
+  jump?: 'dc' | 'ds';
+};
+
+/** Array order is the written order; use `unroll` for the playing order. */
+export type Measure = { id: string; page: number; rect: Rect; marks?: Marks };
 
 /** `grouping` is in 1/den units and sums to num: 7/8 = [2,2,3]; 4/4 = [1,1,1,1]. */
 export type Meter = { num: number; den: number; grouping: number[] };
