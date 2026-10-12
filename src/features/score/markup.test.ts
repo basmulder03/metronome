@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes, splitMeasure } from './markup';
+import { dragEdge, looksLikePickup, mergeMeasures, moveBox, outlineRect, removeMeasure, replaceBoxes, snapBox, splitMeasure, tidyRow } from './markup';
 import { emptyPiece, type Piece } from '../../shared/types';
 
 const piece = (n: number): Piece => {
@@ -177,5 +177,114 @@ describe('looksLikePickup', () => {
     const p = row([0.06, 0.2, 0.21, 0.2]);
     p.measures[0].marks = { pickup: 1 };
     expect(looksLikePickup(p)).toBe(false);
+  });
+});
+
+describe('outlining', () => {
+  const r = (x: number, y: number, w: number, h: number) => ({ x, y, w, h });
+  // a row of two bars: tops at 0.20, height 0.10
+  const row = [r(0.1, 0.2, 0.2, 0.1), r(0.3, 0.2, 0.2, 0.1)];
+
+  describe('outlineRect (a box that was just drawn)', () => {
+    it('takes the top and height of the boxes in its row', () => {
+      const out = outlineRect(r(0.5, 0.215, 0.2, 0.07), row);
+      expect(out.y).toBeCloseTo(0.2);
+      expect(out.h).toBeCloseTo(0.1);
+    });
+
+    it('connects its left edge to the barline of the box just before it', () => {
+      const out = outlineRect(r(0.507, 0.2, 0.2, 0.1), row);
+      expect(out.x).toBeCloseTo(0.5); // the end of the second bar
+      expect(out.x + out.w).toBeCloseTo(0.707); // the right edge was nowhere near a neighbour: untouched
+    });
+
+    it('connects its right edge to the barline of the box just after it', () => {
+      const out = outlineRect(r(0.0, 0.2, 0.105, 0.1), row); // right edge 0.105: the next box starts at 0.1
+      expect(out.x + out.w).toBeCloseTo(0.1);
+    });
+
+    it('fills a gap between two neighbours exactly', () => {
+      const out = outlineRect(r(0.507, 0.19, 0.198, 0.12), [...row, r(0.7, 0.2, 0.2, 0.1)]);
+      expect(out.x).toBeCloseTo(0.5);
+      expect(out.x + out.w).toBeCloseTo(0.7);
+    });
+
+    it('leaves a box alone when no other box shares its row or the edges are far away', () => {
+      const lower = r(0.1, 0.6, 0.2, 0.1);
+      expect(outlineRect(lower, row)).toEqual(lower); // a different system
+      const out = outlineRect(r(0.62, 0.2, 0.2, 0.1), row);
+      expect(out.x).toBeCloseTo(0.62); // 0.12 away from the last barline: a deliberate gap
+    });
+
+    it('never makes a box smaller than the minimum', () => {
+      // both edges would snap and leave 0.003 between the barlines: too thin, so the drawn shape is kept
+      const out = outlineRect(r(0.4985, 0.2, 0.01, 0.1), [r(0.3, 0.2, 0.2, 0.1), r(0.503, 0.2, 0.2, 0.1)]);
+      expect(out.w).toBeGreaterThanOrEqual(0.004 - 1e-9);
+      expect(out.x).toBeCloseTo(0.4985);
+    });
+  });
+
+  describe('snapBox (after a drag)', () => {
+    const rowPiece = () => { const p = piece(3); p.measures.forEach((m, i) => (m.rect = r(0.1 + i * 0.2, 0.2, 0.2, 0.1))); return p; };
+
+    it('settles a box that is a little off onto its neighbours', () => {
+      const p = rowPiece();
+      p.measures[1].rect = r(0.303, 0.206, 0.197, 0.1); // slightly low and shifted
+      snapBox(p, 1);
+      expect(p.measures[1].rect.y).toBeCloseTo(0.2);
+      expect(p.measures[1].rect.x).toBeCloseTo(0.3);
+      expect(p.measures[1].rect.x + p.measures[1].rect.w).toBeCloseTo(0.5);
+    });
+
+    it('keeps a box that was made taller on purpose', () => {
+      const p = rowPiece();
+      p.measures[1].rect = r(0.3, 0.2, 0.2, 0.16); // bottom is 0.06 away from the others'
+      snapBox(p, 1);
+      expect(p.measures[1].rect.h).toBeCloseTo(0.16);
+    });
+
+    it('does nothing for a box on its own', () => {
+      const p = piece(2);
+      p.measures[1].page = 1;
+      const before = { ...p.measures[1].rect };
+      snapBox(p, 1);
+      expect(p.measures[1].rect).toEqual(before);
+    });
+  });
+
+  describe('tidyRow', () => {
+    it('gives a row one top and height and closes the small gaps and overlaps between its bars', () => {
+      const p = piece(4);
+      p.measures[0].rect = r(0.1, 0.2, 0.2, 0.1);
+      p.measures[1].rect = r(0.304, 0.21, 0.2, 0.09); // a little gap, lower, shorter
+      p.measures[2].rect = r(0.495, 0.2, 0.2, 0.1); // overlaps the previous one
+      p.measures[3].rect = r(0.1, 0.6, 0.2, 0.1); // another row: must not move
+      const other = { ...p.measures[3].rect };
+      expect(tidyRow(p, 1)).toBeGreaterThan(0);
+      const [a, b, c] = p.measures.slice(0, 3).map((m) => m.rect);
+      expect([a.y, b.y, c.y]).toEqual([0.2, 0.2, 0.2]);
+      expect([a.h, b.h, c.h]).toEqual([0.1, 0.1, 0.1]);
+      expect(a.x + a.w).toBeCloseTo(b.x, 6);
+      expect(b.x + b.w).toBeCloseTo(c.x, 6);
+      expect(p.measures[3].rect).toEqual(other);
+    });
+
+    it('leaves a real break between two groups of bars, and reports nothing to do on a tidy row', () => {
+      const p = piece(3);
+      p.measures[0].rect = r(0.1, 0.2, 0.2, 0.1);
+      p.measures[1].rect = r(0.3, 0.2, 0.2, 0.1);
+      p.measures[2].rect = r(0.7, 0.2, 0.2, 0.1); // 0.2 away: a break
+      expect(tidyRow(p, 0)).toBe(0);
+      expect(p.measures[2].rect.x).toBeCloseTo(0.7);
+    });
+
+    it('is idempotent', () => {
+      const p = piece(3);
+      p.measures[0].rect = r(0.1, 0.2, 0.2, 0.1);
+      p.measures[1].rect = r(0.303, 0.205, 0.2, 0.09);
+      p.measures[2].rect = r(0.5, 0.2, 0.2, 0.1);
+      tidyRow(p, 0);
+      expect(tidyRow(p, 0)).toBe(0);
+    });
   });
 });

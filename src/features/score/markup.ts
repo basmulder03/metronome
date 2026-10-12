@@ -140,3 +140,74 @@ export function moveBox(p: Piece, index: number, dx: number, dy: number) {
   if (!m) return;
   m.rect = { ...m.rect, x: Math.min(1 - m.rect.w, Math.max(0, m.rect.x + dx)), y: Math.min(1 - m.rect.h, Math.max(0, m.rect.y + dy)) };
 }
+
+// ---- outlining: boxes that line up with their neighbours ----
+
+const SNAP = 0.012; // an edge this close to a neighbour's is pulled onto it (page fractions)
+const TIDY_GAP = 0.03; // gaps and overlaps smaller than this between two bars in a row count as "the same barline"
+
+const overlapY = (a: Rect, b: Rect) => Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+/** The boxes in the same row (system) as `r`: they overlap it vertically by more than half of the shorter one. */
+const sameRow = (r: Rect, others: Rect[]) => others.filter((o) => overlapY(r, o) > Math.min(r.h, o.h) * 0.5);
+const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+const nearest = (v: number, candidates: number[], tol: number) =>
+  candidates.reduce<number | undefined>((best, c) => (Math.abs(c - v) < tol && (best === undefined || Math.abs(c - v) < Math.abs(best - v)) ? c : best), undefined);
+
+/**
+ * A freshly drawn box takes the top and height of the boxes already in its row, and its left and right edges connect to the
+ * barline of a neighbour that is close, so the bars of a system end up the same size and touching.
+ */
+export function outlineRect(rect: Rect, others: Rect[]): Rect {
+  const peers = sameRow(rect, others);
+  if (!peers.length) return rect;
+  const left = nearest(rect.x, peers.map((o) => o.x + o.w), SNAP) ?? rect.x;
+  const right = nearest(rect.x + rect.w, peers.map((o) => o.x), SNAP) ?? rect.x + rect.w;
+  const [x, w] = right - left >= MIN ? [left, right - left] : [rect.x, rect.w];
+  return { x, y: median(peers.map((o) => o.y)), w, h: median(peers.map((o) => o.h)) };
+}
+
+/**
+ * After a drag: settle the box's top, bottom and sides onto the edges of the boxes in its row when they are within reach.
+ * Unlike outlineRect this never forces a size, so a box that was made taller on purpose stays taller.
+ */
+export function snapBox(p: Piece, index: number) {
+  const m = p.measures[index];
+  if (!m) return;
+  const peers = sameRow(m.rect, p.measures.filter((o, i) => i !== index && o.page === m.page).map((o) => o.rect));
+  if (!peers.length) return;
+  let { x, y, w, h } = m.rect;
+  const top = nearest(y, peers.map((o) => o.y), SNAP);
+  if (top !== undefined) { h += y - top; y = top; }
+  const bottom = nearest(y + h, peers.map((o) => o.y + o.h), SNAP);
+  if (bottom !== undefined) h = bottom - y;
+  const left = nearest(x, peers.map((o) => o.x + o.w), SNAP);
+  if (left !== undefined) { w += x - left; x = left; }
+  const right = nearest(x + w, peers.map((o) => o.x), SNAP);
+  if (right !== undefined) w = right - x;
+  if (w >= MIN && h >= MIN) m.rect = { x, y, w, h };
+}
+
+/**
+ * Make a whole row of boxes consistent: the same top and height (the median), and small gaps or overlaps between neighbouring
+ * bars closed at their midpoint. Returns how many boxes changed.
+ */
+export function tidyRow(p: Piece, index: number): number {
+  const base = p.measures[index];
+  if (!base) return 0;
+  const row = p.measures.filter((m) => m.page === base.page && overlapY(base.rect, m.rect) > Math.min(base.rect.h, m.rect.h) * 0.5);
+  const before = row.map((m) => m.rect);
+  const y = median(row.map((m) => m.rect.y)), h = median(row.map((m) => m.rect.h));
+  const sorted = [...row].sort((a, b) => a.rect.x - b.rect.x);
+  for (const m of sorted) m.rect = { ...m.rect, y, h };
+  for (let k = 0; k + 1 < sorted.length; k++) {
+    const a = sorted[k].rect, b = sorted[k + 1].rect;
+    const gap = b.x - (a.x + a.w);
+    if (Math.abs(gap) >= TIDY_GAP || Math.abs(gap) < 1e-9) continue; // a real break between two groups of bars, or already touching
+    const mid = (a.x + a.w + b.x) / 2;
+    if (mid - a.x < MIN || b.x + b.w - mid < MIN) continue;
+    sorted[k].rect = { ...a, w: mid - a.x };
+    sorted[k + 1].rect = { ...b, x: mid, w: b.x + b.w - mid };
+  }
+  const same = (a: Rect, b: Rect) => (['x', 'y', 'w', 'h'] as const).every((k) => Math.abs(a[k] - b[k]) < 1e-9);
+  return row.filter((m, i) => !same(m.rect, before[i])).length;
+}
