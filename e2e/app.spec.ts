@@ -234,3 +234,23 @@ test('tap tempo sets the BPM from the tapping speed', async ({ page }) => {
   expect(bpm).toBeGreaterThan(105); // 500 ms apart is 120, with test timing jitter
   expect(bpm).toBeLessThan(135);
 });
+
+test('a second ramp cannot overlap the first', async ({ page }) => {
+  await openAndMark(page); // 4 measures
+  await page.locator('.box').first().click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  await page.getByRole('button', { name: 'Accelerando from here' }).click(); // measures 1-4
+  await page.getByLabel('Last measure').fill('2');
+  await page.getByLabel('Last measure').blur();
+
+  await page.locator('.box').nth(1).click();
+  await expect(page.getByText('already inside the ramp from measure 1 to 2')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rallentando from here' })).toHaveCount(0);
+
+  await page.locator('.box').nth(3).click(); // measure 4 is free
+  await page.getByRole('button', { name: 'Rallentando from here' }).click();
+  await page.locator('.box').first().click();
+  await page.getByLabel('Last measure').fill('4'); // would run into the ramp that starts at 4
+  await page.getByLabel('Last measure').blur();
+  await expect(page.getByLabel('Last measure')).toHaveValue('3');
+});

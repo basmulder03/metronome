@@ -2,7 +2,7 @@
   import Button from '../../shared/ui/Button.svelte';
   import { removeMeasure } from '../score/markup';
   import { tapBpm } from './tap';
-  import { defaultGrouping, meterAt, parseGrouping, tempoAt } from './timeline';
+  import { defaultGrouping, maxRampEnd, meterAt, parseGrouping, rampCovering, tempoAt } from './timeline';
   import { DEFAULT_BPM, DEFAULT_UNIT, type Ramp } from '../../shared/types';
   import CurveEditor from './CurveEditor.svelte';
   import { app } from '../../shared/store.svelte';
@@ -50,9 +50,10 @@
     const t = tempoAt(p, i);
     p.tempos.push({ at: i, bpm: t?.bpm ?? DEFAULT_BPM, unit: { ...(t?.unit ?? DEFAULT_UNIT) } });
   }
+  const enclosing = $derived(rampCovering(p, i)); // a ramp that already runs through this measure
   function addRamp(factor: number) {
     const bpm = tempoAt(p, i)?.bpm ?? DEFAULT_BPM;
-    const r: Ramp = { from: i, to: Math.min(i + 3, p.measures.length - 1), startBpm: bpm, endBpm: Math.round(bpm * factor), curve: [0.42, 0, 0.58, 1] };
+    const r: Ramp = { from: i, to: Math.min(i + 3, maxRampEnd(p, i)), startBpm: bpm, endBpm: Math.round(bpm * factor), curve: [0.42, 0, 0.58, 1] };
     p.ramps.push(r);
   }
   const unitIndex = (u: { den: number; dotted: boolean }) => UNITS.findIndex((x) => x.den === u.den && x.dotted === u.dotted);
@@ -104,16 +105,18 @@
     <h4>Accelerando / rallentando</h4>
     {#if ramp}
       <div class="row">
-        <label>Last measure<input type="number" min={i + 1} max={p.measures.length} value={ramp.to + 1}
-          onchange={(e) => (ramp.to = Math.min(p.measures.length - 1, Math.max(i, +e.currentTarget.value - 1)))} /></label>
+        <label>Last measure<input type="number" min={i + 1} max={maxRampEnd(p, i) + 1} value={ramp.to + 1}
+          onchange={(e) => { ramp.to = Math.min(maxRampEnd(p, i), Math.max(i, +e.currentTarget.value - 1)); e.currentTarget.value = String(ramp.to + 1); }} /></label>
         <label>Start BPM<input type="number" min="20" max="400" bind:value={ramp.startBpm} /></label>
         <label>End BPM<input type="number" min="20" max="400" bind:value={ramp.endBpm} /></label>
       </div>
-      <CurveEditor bind:curve={ramp.curve} onchange={() => {}} />
+      <CurveEditor bind:curve={ramp.curve} />
       <div class="row">
         <Button variant="primary" onclick={() => onplay(Math.max(0, i - 1), Math.min(p.measures.length - 1, ramp.to + 1), true)}>Preview (loop, 1 bar around)</Button>
         <Button onclick={() => p.ramps.splice(p.ramps.indexOf(ramp), 1)}>Remove</Button>
       </div>
+    {:else if enclosing}
+      <p class="mut">Measure {i + 1} is already inside the ramp from measure {enclosing.from + 1} to {enclosing.to + 1}. Select that measure to change it.</p>
     {:else}
       <div class="row">
         <Button onclick={() => addRamp(1.25)}>Accelerando from here</Button>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece, type Piece } from '../../shared/types';
-import { buildTimeline, countIn, ease, parseGrouping } from './timeline';
+import { buildTimeline, countIn, ease, maxRampEnd, parseGrouping, rampCovering } from './timeline';
 
 const piece = (n: number): Piece => {
   const p = emptyPiece();
@@ -108,5 +108,17 @@ describe('pickup, fermata and count-in', () => {
     expect(pre.at(-1)!.time).toBeCloseTo(-0.5);
     expect(pre.map((b) => b.accent).slice(0, 4)).toEqual([2, 1, 1, 1]);
     expect(countIn(p, tl, 0, 0)).toEqual([]);
+  });
+});
+
+describe('ramp ranges', () => {
+  it('finds the ramp covering a measure and the room before the next ramp', () => {
+    const p = piece(10);
+    p.ramps.push({ from: 2, to: 4, startBpm: 100, endBpm: 80, curve: [0, 0, 1, 1] }, { from: 7, to: 8, startBpm: 80, endBpm: 60, curve: [0, 0, 1, 1] });
+    expect(rampCovering(p, 3)?.from).toBe(2);
+    expect(rampCovering(p, 5)).toBeUndefined();
+    expect(maxRampEnd(p, 0)).toBe(1); // must stop before the ramp that starts at measure 2
+    expect(maxRampEnd(p, 5)).toBe(6);
+    expect(maxRampEnd(p, 8)).toBe(9); // nothing after it: up to the last measure
   });
 });

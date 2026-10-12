@@ -58,6 +58,13 @@ export function countIn(p: Piece, tl: Timeline, i0: number, bars: number): Beat[
 
 export const meterAt = (p: Piece, m: number): Meter => last(p.meters, m)?.meter ?? DEFAULT_METER;
 
+/** The ramp that covers measure m, if any. Ramps may not overlap: the timeline would only honour the first. */
+export const rampCovering = (p: Piece, m: number) => p.ramps.find((r) => r.from <= m && m <= r.to);
+
+/** Last measure a ramp starting at `from` may reach without running into the next ramp. */
+export const maxRampEnd = (p: Piece, from: number) =>
+  Math.min(p.measures.length - 1, ...p.ramps.filter((r) => r.from > from).map((r) => r.from - 1));
+
 /** The tempo event in force at measure m (ramps do not count). */
 export const tempoAt = (p: Piece, m: number) => last(p.tempos, m);
 

@@ -3,7 +3,7 @@
   import { ease } from './timeline';
   import type { Curve } from '../../shared/types';
 
-  let { curve = $bindable(), onchange }: { curve: Curve; onchange: () => void } = $props();
+  let { curve = $bindable() }: { curve: Curve } = $props();
 
   const PRESETS: Record<string, Curve> = {
     linear: [0, 0, 1, 1],
@@ -26,7 +26,6 @@
     const x = Math.min(1, Math.max(0, ((e.clientX - r.left) / r.width) * (S + 2 * PAD) - PAD) / S);
     const y = Math.min(1.5, Math.max(-0.5, 1 - (((e.clientY - r.top) / r.height) * (S + 2 * PAD) - PAD) / S));
     curve = drag === 0 ? [x, y, curve[2], curve[3]] : [curve[0], curve[1], x, y];
-    onchange();
   }
 </script>
 
@@ -44,7 +43,7 @@
   <p class="axes">x: position in the range, y: how far from start to end tempo</p>
   <div class="presets">
     {#each Object.entries(PRESETS) as [name, c]}
-      <Button size="sm" onclick={() => { curve = [...c]; onchange(); }}>{name}</Button>
+      <Button size="sm" onclick={() => { curve = [...c]; }}>{name}</Button>
     {/each}
   </div>
 </div>
