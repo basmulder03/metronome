@@ -36,7 +36,7 @@
     <line x1={px(1)} y1={py(1)} x2={px(curve[2])} y2={py(curve[3])} stroke="var(--mut)" />
     <path d={path} fill="none" stroke="var(--acc)" stroke-width="3" />
     {#each [0, 1] as h}
-      <circle role="slider" aria-label="Curve handle" aria-valuenow={0} tabindex="-1" cx={px(curve[h * 2])} cy={py(curve[h * 2 + 1])} r="9" fill="var(--acc)" style="touch-action:none; cursor:grab"
+      <circle role="slider" aria-label="Curve handle" aria-valuenow={0} tabindex="-1" cx={px(curve[h * 2])} cy={py(curve[h * 2 + 1])} r="9" fill="var(--acc)" class="handle"
         onpointerdown={(e) => { drag = h; (e.currentTarget as Element).setPointerCapture(e.pointerId); }} />
     {/each}
   </svg>
@@ -49,6 +49,7 @@
 </div>
 
 <style>
+  .handle { touch-action: none; cursor: grab; }
   svg { width: 100%; max-width: 260px; touch-action: none; }
   .axes { color: var(--mut); font-size: 12px; margin: 2px 0 8px; }
   .presets { display: flex; flex-wrap: wrap; gap: 6px; }

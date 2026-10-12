@@ -1,0 +1,4 @@
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.row input, .row select { width: 100%; max-width: 130px; }
+.mut { color: var(--mut); margin: 0 0 8px; }
+.err { color: #c92a2a; margin: 0; font-size: 13px; }

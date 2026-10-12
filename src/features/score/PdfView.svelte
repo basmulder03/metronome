@@ -100,25 +100,25 @@
   });
 </script>
 
-<div role="application" aria-label="Score" class="page" bind:this={overlay} style:width="{zoom * 100}%" style:aspect-ratio={1 / aspect}
+<div role="application" aria-label="Score" class="page" bind:this={overlay} style:--zoom={zoom} style:--aspect={1 / aspect}
   class:drawing={mode === 'draw'} onpointerdown={down} onpointermove={move} onpointerup={up}>
   <canvas bind:this={canvas}></canvas>
   {#each here as { m, i } (m.id)}
     <button type="button" class="box" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(i)}
-      style:left="{m.rect.x * 100}%" style:top="{m.rect.y * 100}%" style:width="{m.rect.w * 100}%" style:height="{m.rect.h * 100}%"
+      style:--x={m.rect.x} style:--y={m.rect.y} style:--w={m.rect.w} style:--h={m.rect.h}
       onclick={(e) => pick(e, i)}>
       <span class="n">{i + 1}</span><span class="tag">{label(i)}</span>
     </button>
   {/each}
-  {#if ghost}<div class="box ghost" style:left="{ghost.x * 100}%" style:top="{ghost.y * 100}%" style:width="{ghost.w * 100}%" style:height="{ghost.h * 100}%"></div>{/if}
+  {#if ghost}<div class="box ghost" style:--x={ghost.x} style:--y={ghost.y} style:--w={ghost.w} style:--h={ghost.h}></div>{/if}
   {#if !doc}<p class="empty">Open a PDF to start.</p>{/if}
 </div>
 
 <style>
-  .page { position: relative; max-width: 100%; background: #fff; margin: 0 auto; }
+  .page { position: relative; width: calc(var(--zoom) * 100%); aspect-ratio: var(--aspect); max-width: 100%; background: #fff; margin: 0 auto; }
   .page.drawing { touch-action: none; cursor: crosshair; }
   canvas { width: 100%; height: 100%; display: block; }
-  .box { position: absolute; padding: 0; min-height: 0; border: 1px solid rgba(59, 91, 219, 0.5); border-radius: 2px; background: rgba(59, 91, 219, 0.06); text-align: left; transition: background 0.12s; }
+  .box { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--w) * 100%); height: calc(var(--h) * 100%); padding: 0; min-height: 0; border: 1px solid rgba(59, 91, 219, 0.5); border-radius: 2px; background: rgba(59, 91, 219, 0.06); text-align: left; transition: background 0.12s; }
   .page.drawing .box { pointer-events: none; }
   .box.ramp { background: rgba(240, 140, 0, 0.12); border-color: rgba(240, 140, 0, 0.6); }
   .box.sel { outline: 2px solid #3b5bdb; }

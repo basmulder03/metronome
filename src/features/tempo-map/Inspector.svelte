@@ -118,9 +118,5 @@
   h3, h4 { margin: 0 0 4px; }
   h4 { font-size: 13px; color: var(--mut); }
   section { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 8px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
-  .row input, .row select { width: 100%; max-width: 130px; }
-  .mut { color: var(--mut); margin: 0 0 8px; }
-  .err { color: #c92a2a; margin: 0; font-size: 13px; }
   .bad { border-color: #c92a2a; }
 </style>
