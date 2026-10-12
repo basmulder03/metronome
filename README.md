@@ -18,7 +18,7 @@ npm run server           # backend on http://127.0.0.1:8090 (own terminal)
 npm run dev              # app with hot reload on http://localhost:5173 (own terminal)
 ```
 
-Open the app, create an account, open a PDF.
+Open the app, create an account, open a PDF. The OCR engine (about 14 MB) is copied into `public/ocr` by `npm run dev` / `npm run build`; it is loaded only when you ask for OCR and is not part of the offline precache.
 
 ### Production: one small process
 
@@ -52,7 +52,7 @@ Vertical slices under `src/features`, shared pieces under `src/shared`:
 
 | Slice | What it owns |
 | --- | --- |
-| `score` | PDF page view, measure boxes (draw / split), barline auto-detection, measure grid |
+| `score` | PDF page view, measure boxes (draw / split), barline auto-detection, reading marks from the PDF (text layer or OCR), measure grid |
 | `tempo-map` | Timeline engine (meters, tempos, bezier ramps, pickups, fermatas, count-in), inspector, curve editor, tap tempo |
 | `structure` | Repeats, endings, D.C./D.S. and how they unroll into a playing order |
 | `playback` | Click scheduling on the audio clock, offline WAV rendering |
@@ -65,8 +65,11 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
 
 ## Known limits
 
-- **No score reading.** Time signatures, tempo marks and "rit./accel." text are not recognised from the PDF; you set
-  them in the editor. Barline detection is classical image processing and will miss on dense, skewed or handwritten scores.
+- **Reading the score is best effort.** "Read from PDF" uses the PDF's own text layer when there is one (exact: tempo marks,
+  time signatures, rit./accel. words) and OCR for scans (tempo marks and rit./accel. words only; OCR cannot read music-font
+  time signatures). Everything is a suggestion you review first, and the end tempo of a rit./accel. is always a guess.
+  Barline detection is classical image processing and will miss on dense, skewed or handwritten scores.
+- **Repeat signs, voltas and fermatas are not read from the page**; mark them in the editor.
 - **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.
 - **Sync pulls everything each time**, which is fine for a personal library, not for thousands of pieces.
 - **Count-in** uses the first measure's meter and tempo; fermatas apply on every pass of a repeat.
