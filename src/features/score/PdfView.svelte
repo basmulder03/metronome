@@ -115,16 +115,16 @@
 </div>
 
 <style>
-  .page { position: relative; width: calc(var(--zoom) * 100%); aspect-ratio: var(--aspect); max-width: 100%; background: #fff; margin: 0 auto; }
+  .page { position: relative; width: calc(var(--zoom) * 100%); aspect-ratio: var(--aspect); max-width: 100%; background: var(--paper); margin: 0 auto; }
   .page.drawing { touch-action: none; cursor: crosshair; }
   canvas { width: 100%; height: 100%; display: block; }
-  .box { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--w) * 100%); height: calc(var(--h) * 100%); padding: 0; min-height: 0; border: 1px solid rgba(59, 91, 219, 0.5); border-radius: 2px; background: rgba(59, 91, 219, 0.06); text-align: left; transition: background 0.12s; }
+  .box { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--w) * 100%); height: calc(var(--h) * 100%); padding: 0; min-height: 0; border: 1px solid color-mix(in srgb, var(--on-paper-accent) 50%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--on-paper-accent) 6%, transparent); text-align: left; transition: background 0.12s; }
   .page.drawing .box { pointer-events: none; }
-  .box.ramp { background: rgba(240, 140, 0, 0.12); border-color: rgba(240, 140, 0, 0.6); }
-  .box.sel { outline: 2px solid #3b5bdb; }
-  .box.playing { background: rgba(47, 158, 68, 0.35); border-color: #2f9e44; }
+  .box.ramp { background: color-mix(in srgb, var(--on-paper-ramp) 12%, transparent); border-color: color-mix(in srgb, var(--on-paper-ramp) 60%, transparent); }
+  .box.sel { outline: 2px solid var(--on-paper-accent); }
+  .box.playing { background: color-mix(in srgb, var(--on-paper-play) 35%, transparent); border-color: var(--on-paper-play); }
   .ghost { border-style: dashed; pointer-events: none; }
-  .n { position: absolute; top: -1px; left: 2px; font-size: 10px; font-weight: 700; color: #3b5bdb; }
-  .tag { position: absolute; bottom: 0; left: 2px; font-size: 10px; color: #c2255c; white-space: nowrap; }
-  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #666; margin: 0; }
+  .n { position: absolute; top: -1px; left: 2px; font-size: 10px; font-weight: 700; color: var(--on-paper-accent); }
+  .tag { position: absolute; bottom: 0; left: 2px; font-size: 10px; color: var(--on-paper-tag); white-space: nowrap; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--fg-muted); margin: 0; }
 </style>

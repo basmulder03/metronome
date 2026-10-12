@@ -8,7 +8,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vite/client", "svelte"]
+    "types": ["vite/client", "svelte", "node"]
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]
 }

@@ -1,0 +1,34 @@
+/* Design tokens. The only place raw colours and sizes are defined (see STYLE.md).
+   light-dark() picks the value from color-scheme, which follows the OS unless data-theme forces it. */
+:root { color-scheme: light dark; }
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
+
+:root {
+  --bg: light-dark(#ffffff, #16161a);
+  --surface: light-dark(#f4f4f8, #1f1f26);
+  --fg: light-dark(#1b1b1f, #ececf1);
+  --fg-muted: light-dark(#5c5c68, #a0a0ae);
+  --border: light-dark(#d8d8e0, #34343f);
+  --accent: light-dark(#3b5bdb, #8ea2ff);
+  --accent-fg: light-dark(#ffffff, #0f1226);
+  --danger: light-dark(#c92a2a, #ff8787);
+  --shadow: light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.6));
+
+  /* Sheet music stays white in both themes, so marks drawn on it use fixed colours with contrast against white. */
+  --paper: #ffffff;
+  --on-paper-accent: #3b5bdb;
+  --on-paper-tag: #c2255c;
+  --on-paper-ramp: #e8590c;
+  --on-paper-play: #2f9e44;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --radius: 8px;
+  --tap: 40px; /* minimum touch target */
+  --font-sm: 12px;
+  --font-md: 15px;
+  --font: system-ui, sans-serif;
+}

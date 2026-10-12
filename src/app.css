@@ -1,8 +1,0 @@
-:root { --bg:#fff; --fg:#1b1b1f; --mut:#6b6b76; --line:#d8d8e0; --acc:#3b5bdb; --card:#f4f4f8; color-scheme: light dark; }
-@media (prefers-color-scheme: dark) { :root { --bg:#16161a; --fg:#ececf1; --mut:#9a9aa8; --line:#2e2e38; --acc:#7c93ff; --card:#1f1f26; } }
-* { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:15px system-ui, sans-serif; }
-button, input, select { font:inherit; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 12px; min-height:40px; }
-button.primary { background:var(--acc); color:#fff; border-color:var(--acc); }
-button.on { outline:2px solid var(--acc); }
-label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--mut); }

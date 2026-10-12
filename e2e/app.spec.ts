@@ -120,3 +120,12 @@ test('markup persists across reload', async ({ page }) => {
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('metronome.piece')!).measures.length)).toBe(4);
 });
+
+test('toolbar does not shift the score when a measure is selected', async ({ page }) => {
+  const px = await openAndMark(page);
+  void px;
+  await page.locator('.box').first().click();
+  const y0 = (await page.locator('.page').boundingBox())!.y;
+  await page.locator('.box').nth(3).click();
+  expect((await page.locator('.page').boundingBox())!.y).toBe(y0);
+});

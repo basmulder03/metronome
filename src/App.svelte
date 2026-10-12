@@ -7,6 +7,10 @@
   import Inspector from './features/tempo-map/Inspector.svelte';
   import PdfView from './features/score/PdfView.svelte';
   import { app, save, timeline } from './shared/store.svelte';
+  import Button from './shared/ui/Button.svelte';
+  import Segmented from './shared/ui/Segmented.svelte';
+  import Sheet from './shared/ui/Sheet.svelte';
+  import ThemeToggle from './shared/ui/ThemeToggle.svelte';
 
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -76,53 +80,53 @@
 <header>
   <label class="file">Open PDF<input type="file" accept="application/pdf" onchange={open} hidden /></label>
   <span class="grp">
-    <button disabled={pageNum === 0} onclick={() => pageNum--}>‹</button>
+    <Button disabled={pageNum === 0} onclick={() => pageNum--} aria-label="Previous page">‹</Button>
     <span>{pageNum + 1}/{pages}</span>
-    <button disabled={pageNum >= pages - 1} onclick={() => pageNum++}>›</button>
+    <Button disabled={pageNum >= pages - 1} onclick={() => pageNum++} aria-label="Next page">›</Button>
   </span>
   <span class="grp">
-    <button onclick={() => (zoom = Math.max(0.5, zoom - 0.25))}>−</button>
-    <button onclick={() => (zoom = Math.min(3, zoom + 0.25))}>+</button>
+    <Button onclick={() => (zoom = Math.max(0.5, zoom - 0.25))} aria-label="Zoom out">−</Button>
+    <Button onclick={() => (zoom = Math.min(3, zoom + 0.25))} aria-label="Zoom in">+</Button>
   </span>
   <span class="grp">
-    <button onclick={autoDetect} disabled={!doc} title="Find staves and barlines on this page">Auto-detect</button>
-    <button class:on={mode === 'draw'} onclick={() => (mode = 'draw')} title="Drag a box around each staff line">Draw</button>
-    <button class:on={mode === 'split'} onclick={() => (mode = 'split')} title="Tap a barline to split a box">Split</button>
-    <button class:on={mode === 'select'} onclick={() => (mode = 'select')}>Select</button>
+    <Button onclick={autoDetect} disabled={!doc} title="Find staves and barlines on this page">Auto-detect</Button>
+    <Segmented bind:value={mode} options={[
+      { value: 'draw', label: 'Draw', title: 'Drag a box around each staff line' },
+      { value: 'split', label: 'Split', title: 'Tap a barline to split a box' },
+      { value: 'select', label: 'Select' },
+    ]} />
   </span>
   <span class="grp">
     {#if playing}
-      <button class="primary" onclick={() => player.stop()}>Stop</button>
+      <Button variant="primary" onclick={() => player.stop()}>Stop</Button>
     {:else}
-      <button class="primary" onclick={playFromSelected}>Play{app.selected >= 0 ? ` from ${app.selected + 1}` : ''}</button>
+      <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${app.selected + 1}` : 'Play'}>Play</Button>
     {/if}
     <label class="chk"><input type="checkbox" bind:checked={subdivide} /> subdivisions</label>
-    <button disabled={busy} onclick={exportWav}>{busy ? 'Rendering…' : 'Export WAV'}</button>
+    <Button disabled={busy} onclick={exportWav}>{busy ? 'Rendering…' : 'Export WAV'}</Button>
   </span>
+  <span class="grp end"><ThemeToggle /></span>
 </header>
 
 {#if status}<p class="status" role="status">{status}</p>{/if}
 <main>
   <div class="score"><PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} /></div>
-  <aside><Inspector onplay={play} /></aside>
+  <Sheet><Inspector onplay={play} /></Sheet>
 </main>
 
 <style>
-  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); position: static; top: 0; background: var(--bg); z-index: 5; }
-  .grp { display: flex; gap: 6px; align-items: center; }
-  .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; min-height: 40px; cursor: pointer; color: var(--fg); font-size: 15px; }
+  header { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
+  .grp { display: flex; gap: 6px; align-items: center; flex: none; } /* fixed width: a changing label must not re-wrap the header and shift the score */
+  .end { margin-left: auto; }
+  .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
   .chk { flex-direction: row; align-items: center; font-size: 13px; }
-  .status { margin: 0; padding: 6px 12px; font-size: 13px; background: var(--card); color: var(--mut); }
+  .status { margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   main { display: grid; grid-template-columns: 1fr; }
-  .score { overflow: auto; padding: 8px; background: var(--card); }
-  /* phones: inspector is a bottom sheet so edits are visible next to the score */
-  aside { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42vh; overflow: auto; padding: 12px; background: var(--bg); border-top: 1px solid var(--line); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15); z-index: 4; }
-  .score { padding-bottom: 45vh; }
+  .score { overflow: auto; padding: var(--space-2); padding-bottom: 45vh; background: var(--surface); } /* room for the phone bottom sheet */
   @media (min-width: 900px) {
-    header { position: sticky; }
+    header { position: sticky; top: 0; }
     main { grid-template-columns: 1fr 340px; height: calc(100vh - 57px); }
-    .score, aside { overflow: auto; }
-    aside { position: static; max-height: none; box-shadow: none; border-top: 0; border-left: 1px solid var(--line); }
-    .score { padding-bottom: 8px; }
+    main > :global(aside), .score { overflow: auto; }
+    .score { padding-bottom: var(--space-2); }
   }
 </style>

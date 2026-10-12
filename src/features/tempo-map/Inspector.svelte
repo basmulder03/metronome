@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from '../../shared/ui/Button.svelte';
   import { removeMeasure } from '../score/markup';
   import { defaultGrouping, meterAt, parseGrouping, tempoAt } from './timeline';
   import { DEFAULT_BPM, DEFAULT_UNIT, type Ramp } from '../../shared/types';
@@ -62,9 +63,9 @@
         <label>Grouping<input bind:value={groupingText} onchange={regroup} class:bad={groupingBad} placeholder="2+2+3" /></label>
       </div>
       {#if groupingBad}<p class="err">Grouping must add up to {meterEv.meter.num}.</p>{/if}
-      <button onclick={() => p.meters.splice(p.meters.indexOf(meterEv), 1)}>Remove change</button>
+      <Button onclick={() => p.meters.splice(p.meters.indexOf(meterEv), 1)}>Remove change</Button>
     {:else}
-      <button onclick={addMeter}>Change time signature here</button>
+      <Button onclick={addMeter}>Change time signature here</Button>
     {/if}
   </section>
 
@@ -79,9 +80,9 @@
           </select>
         </label>
       </div>
-      <button onclick={() => p.tempos.splice(p.tempos.indexOf(tempoEv), 1)}>Remove tempo</button>
+      <Button onclick={() => p.tempos.splice(p.tempos.indexOf(tempoEv), 1)}>Remove tempo</Button>
     {:else}
-      <button onclick={addTempo}>Set tempo here</button>
+      <Button onclick={addTempo}>Set tempo here</Button>
     {/if}
   </section>
 
@@ -96,19 +97,19 @@
       </div>
       <CurveEditor bind:curve={ramp.curve} onchange={() => {}} />
       <div class="row">
-        <button class="primary" onclick={() => onplay(Math.max(0, i - 1), Math.min(p.measures.length - 1, ramp.to + 1), true)}>Preview (loop, 1 bar around)</button>
-        <button onclick={() => p.ramps.splice(p.ramps.indexOf(ramp), 1)}>Remove</button>
+        <Button variant="primary" onclick={() => onplay(Math.max(0, i - 1), Math.min(p.measures.length - 1, ramp.to + 1), true)}>Preview (loop, 1 bar around)</Button>
+        <Button onclick={() => p.ramps.splice(p.ramps.indexOf(ramp), 1)}>Remove</Button>
       </div>
     {:else}
       <div class="row">
-        <button onclick={() => addRamp(1.25)}>Accelerando from here</button>
-        <button onclick={() => addRamp(0.75)}>Rallentando from here</button>
+        <Button onclick={() => addRamp(1.25)}>Accelerando from here</Button>
+        <Button onclick={() => addRamp(0.75)}>Rallentando from here</Button>
       </div>
     {/if}
   </section>
 
   <section>
-    <button onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete this measure box</button>
+    <Button onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete this measure box</Button>
   </section>
 {:else}
   <p class="mut">Select a measure box to edit its time signature, tempo or accel/rall.</p>
@@ -116,7 +117,7 @@
 
 <style>
   h3, h4 { margin: 0 0 4px; }
-  h4 { font-size: 13px; color: var(--mut); }
-  section { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 8px; }
-  .bad { border-color: #c92a2a; }
+  h4 { font-size: 13px; color: var(--fg-muted); }
+  section { border-top: 1px solid var(--border); padding: 12px 0; display: grid; gap: 8px; }
+  .bad { border-color: var(--danger); }
 </style>
