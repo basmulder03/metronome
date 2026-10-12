@@ -34,6 +34,9 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.getByRole('button', { name: 'Set tempo here' }).click();
       await page.getByRole('button', { name: 'Accelerando from here' }).click();
       await audit(page, 'editor');
+      await page.getByRole('button', { name: 'Read from PDF' }).click();
+      await expect(page.getByRole('dialog', { name: 'Read from PDF' })).toBeVisible();
+      await audit(page, 'read from PDF dialog');
     });
 
     test('dialogs and the options panel', async ({ page }) => {
