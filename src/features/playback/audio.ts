@@ -19,17 +19,27 @@ function click(ctx: BaseAudioContext, at: number, accent: 0 | 1 | 2) {
 
 const audible = (accent: number, o: ClickOpts) => o.subdivide || accent > 0;
 
-/** First beat index of measure m. */
-const beatIndex = (tl: Timeline, m: number) => tl.beats.findIndex((b) => b.measure >= m);
+/**
+ * Beat range [i0, iEnd) for playing measures from..to (written positions) in playing order.
+ * Starts at the first time `from` is played; ends after the first time `to` is played from there (or at the end if `to` is last).
+ */
+export function beatRange(tl: Timeline, from: number, to: number): [number, number] {
+  const s0 = Math.max(0, tl.steps.findIndex((s) => s.measure === from));
+  const k = to >= tl.measureCount - 1 ? -1 : tl.steps.findIndex((s, i) => i >= s0 && s.measure === to);
+  const s1 = k < 0 ? tl.steps.length : k + 1;
+  const i0 = tl.beats.findIndex((b) => b.step >= s0);
+  const iEnd = s1 >= tl.steps.length ? tl.beats.length : tl.beats.findIndex((b) => b.step >= s1);
+  return [i0, iEnd];
+}
 
-/** Measure that is sounding at `t` seconds (binary search over measureStart). */
+/** Written measure sounding at `t` seconds (binary search over steps). */
 export function measureAtTime(tl: Timeline, t: number): number {
-  let lo = 0, hi = tl.measureStart.length - 1;
+  let lo = 0, hi = tl.steps.length - 1;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
-    if (tl.measureStart[mid] <= t) lo = mid; else hi = mid - 1;
+    if (tl.steps[mid].time <= t) lo = mid; else hi = mid - 1;
   }
-  return lo;
+  return tl.steps[lo]?.measure ?? 0;
 }
 
 export class Player {
@@ -48,8 +58,7 @@ export class Player {
     this.ctx ??= new AudioContext();
     await this.ctx.resume();
     const ctx = this.ctx;
-    const i0 = beatIndex(tl, from);
-    const iEnd = to + 1 >= tl.measureStart.length ? tl.beats.length : beatIndex(tl, to + 1);
+    const [i0, iEnd] = beatRange(tl, from, to);
     if (i0 < 0 || iEnd <= i0) return;
     const t0 = tl.beats[i0].time;
     const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
@@ -97,8 +106,7 @@ export class Player {
 
 /** Render measures from..to to a mono 16-bit WAV, faster than real time and entirely in the browser. */
 export async function renderWav(tl: Timeline, from: number, to: number, opts: ClickOpts, sampleRate = 44100): Promise<Blob> {
-  const i0 = beatIndex(tl, from);
-  const iEnd = to + 1 >= tl.measureStart.length ? tl.beats.length : beatIndex(tl, to + 1);
+  const [i0, iEnd] = beatRange(tl, from, to);
   const t0 = tl.beats[i0].time;
   const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
   const ctx = new OfflineAudioContext(1, Math.ceil((tEnd - t0 + 0.5) * sampleRate), sampleRate);

@@ -16,7 +16,7 @@ describe('timeline', () => {
     const tl = buildTimeline(p);
     expect(tl.beats.map((b) => b.time)).toEqual(expect.arrayContaining([0]));
     expect(tl.beats[1].time).toBeCloseTo(0.5);
-    expect(tl.measureStart[1]).toBeCloseTo(2);
+    expect(tl.steps[1].time).toBeCloseTo(2);
     expect(tl.duration).toBeCloseTo(4);
   });
 
@@ -49,7 +49,7 @@ describe('timeline', () => {
     p.tempos.push({ at: 0, bpm: 60, unit: q });
     p.ramps.push({ from: 0, to: 3, startBpm: 60, endBpm: 120, curve: [0, 0, 1, 1] });
     const tl = buildTimeline(p);
-    expect(tl.duration - tl.measureStart[4]).toBeCloseTo(2);
+    expect(tl.duration - tl.steps[4].time).toBeCloseTo(2);
   });
 
   it('ease-in is slower than linear at the midpoint', () => {
@@ -61,4 +61,14 @@ describe('timeline', () => {
 it('parseGrouping validates the sum', () => {
   expect(parseGrouping('2+2+3', 7)).toEqual([2, 2, 3]);
   expect(parseGrouping('2+2+2', 7)).toBeNull();
+});
+
+it('a repeated section plays (and sounds) twice', () => {
+  const p = piece(2);
+  p.tempos.push({ at: 0, bpm: 120, unit: q });
+  p.measures[1].marks = { repeatEnd: 2 };
+  const tl = buildTimeline(p);
+  expect(tl.steps.map((s) => s.measure)).toEqual([0, 1, 0, 1]);
+  expect(tl.duration).toBeCloseTo(8);
+  expect(tl.beats.at(-1)!.step).toBe(3);
 });

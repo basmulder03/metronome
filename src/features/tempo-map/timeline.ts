@@ -1,9 +1,11 @@
 import type { Curve, Meter, Piece, Unit } from '../../shared/types';
+import { unroll } from '../structure/unroll';
 import { DEFAULT_BPM, DEFAULT_METER, DEFAULT_UNIT } from '../../shared/types';
 
 /** Click kind: 2 = downbeat, 1 = start of a beat group, 0 = subdivision. */
-export type Beat = { time: number; measure: number; accent: 0 | 1 | 2 };
-export type Timeline = { beats: Beat[]; measureStart: number[]; duration: number };
+export type Beat = { time: number; measure: number; step: number; accent: 0 | 1 | 2 };
+/** One step per measure as played, so a repeated measure appears twice. */
+export type Timeline = { beats: Beat[]; steps: { measure: number; time: number }[]; measureCount: number; duration: number };
 
 /** Quarter notes per beat-unit: BPM in `unit` -> quarter-notes per minute is bpm * this. */
 export const unitQuarters = (u: Unit) => (4 / u.den) * (u.dotted ? 1.5 : 1);
@@ -69,19 +71,19 @@ export function buildTimeline(p: Piece): Timeline {
   };
 
   const beats: Beat[] = [];
-  const measureStart: number[] = [];
+  const steps: Timeline['steps'] = [];
   let time = 0;
-  for (let m = 0; m < n; m++) {
-    measureStart.push(time);
+  for (const [s, m] of unroll(p.measures).entries()) {
+    steps.push({ measure: m, time });
     const { num, den, grouping } = meters[m];
     const step = 4 / den;
     const groupStarts = new Set(grouping.reduce<number[]>((a, g) => [...a, (a.at(-1) ?? 0) + g], [0]));
     for (let k = 0; k < num; k++) {
-      beats.push({ time, measure: m, accent: k === 0 ? 2 : groupStarts.has(k) ? 1 : 0 });
+      beats.push({ time, measure: m, step: s, accent: k === 0 ? 2 : groupStarts.has(k) ? 1 : 0 });
       // midpoint rule over the step: 60/qpm integrated across the quarter-note span
       const h = step / SUBSTEPS;
       for (let s = 0; s < SUBSTEPS; s++) time += (60 / qpmAt(m, startQ[m] + k * step + (s + 0.5) * h)) * h;
     }
   }
-  return { beats, measureStart, duration: time };
+  return { beats, steps, measureCount: n, duration: time };
 }
