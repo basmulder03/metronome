@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from '../../shared/ui/Button.svelte';
+  import { encodeShare, shareUrl } from '../share/codec';
   import { lib, rename, remove } from './library.svelte';
 
   let { onopen, onclose }: { onopen: (id: string) => void; onclose: () => void } = $props();
@@ -11,6 +12,17 @@
   function ask(id: string, title: string) {
     const t = prompt('Rename piece', title);
     if (t) void rename(id, t);
+  }
+  let link = $state<{ id: string; url: string } | null>(null);
+  let copied = $state(false);
+  async function share(id: string) {
+    const e = lib.entries.find((x) => x.id === id);
+    if (!e) return;
+    link = { id, url: shareUrl(await encodeShare(e.title, $state.snapshot(e.piece))) };
+    copied = false;
+  }
+  async function copy() {
+    try { await navigator.clipboard.writeText(link!.url); copied = true; } catch { /* clipboard blocked: the link is selectable */ }
   }
   function drop(id: string, title: string) {
     if (confirm(`Delete "${title}" and its PDF from this device?`)) void remove(id);
@@ -34,9 +46,17 @@
         </div>
         <div class="acts">
           <Button size="sm" variant="primary" onclick={() => open(e.id)}>Open</Button>
+          <Button size="sm" onclick={() => void share(e.id)} disabled={e.piece.measures.length === 0}>Share</Button>
           <Button size="sm" onclick={() => ask(e.id, e.title)}>Rename</Button>
           <Button size="sm" onclick={() => drop(e.id, e.title)}>Delete</Button>
         </div>
+        {#if link?.id === e.id}
+          <div class="link">
+            <input readonly aria-label="Share link" value={link.url} onfocus={(ev) => ev.currentTarget.select()} />
+            <Button size="sm" onclick={() => void copy()}>{copied ? 'Copied' : 'Copy'}</Button>
+            <p class="mut">Contains the markup only, not the PDF. Whoever opens it attaches their own copy.</p>
+          </div>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -52,4 +72,7 @@
   li.current { border-color: var(--accent); }
   .title { display: grid; min-width: 0; }
   .acts { display: flex; gap: var(--space-2); }
+  .link { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .link input { flex: 1; min-width: 0; }
+  .link .mut { flex-basis: 100%; margin: 0; font-size: var(--font-sm); }
 </style>

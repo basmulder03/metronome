@@ -7,7 +7,9 @@
   import { insertMeasures, removeMeasure } from './features/score/markup';
   import StructureEditor from './features/structure/StructureEditor.svelte';
   import Inspector from './features/tempo-map/Inspector.svelte';
+  import MeasureStrip from './features/score/MeasureStrip.svelte';
   import PdfView from './features/score/PdfView.svelte';
+  import { codeFromHash, decodeShare } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
   import { emptyPiece } from './shared/types';
   import LibraryPanel from './features/library/LibraryPanel.svelte';
@@ -26,7 +28,7 @@
   let subdivide = $state(false);
   let playing = $state(false);
   let busy = $state(false);
-  let view: PdfView;
+  let view = $state<PdfView>();
   let status = $state('');
 
   let libraryPanel: LibraryPanel;
@@ -64,7 +66,30 @@
     await init();
     const id = lastId();
     if (id && entry(id)) await openEntry(id);
+    await importFromHash();
   })();
+
+  let incoming = $state<{ title: string; piece: typeof app.piece } | null>(null);
+  let importDialog: HTMLDialogElement;
+
+  /** A share link carries markup only; confirm before adding it to the library. */
+  async function importFromHash() {
+    const code = codeFromHash(location.hash);
+    if (!code) return;
+    history.replaceState(null, '', location.pathname + location.search); // never re-import on reload
+    const decoded = await decodeShare(code);
+    if (!decoded) { status = 'That share link is not valid.'; return; }
+    incoming = decoded;
+    importDialog.showModal();
+  }
+  async function acceptImport() {
+    importDialog.close();
+    if (!incoming) return;
+    const id = await create(incoming.title || 'Shared piece', undefined, incoming.piece);
+    incoming = null;
+    await openEntry(id);
+    status = 'Imported without a PDF. Use "Attach PDF" to put your own copy of the score behind it.';
+  }
 
   const player = new Player();
   player.onMeasure = (m) => {
@@ -113,7 +138,7 @@
 
   /** Replace this page's boxes with detected ones; events on removed measures are dropped, others stay attached. */
   async function autoDetect() {
-    const found = detectMeasures(await view.bitmap());
+    const found = detectMeasures(await view!.bitmap());
     if (!found.length) { status = 'No staves found on this page — draw the boxes by hand.'; return; }
     const ms = app.piece.measures;
     if (ms.some((m) => m.page === pageNum) && !confirm('Replace the measure boxes on this page?')) return;
@@ -172,10 +197,27 @@
   </details>
 </header>
 
+<dialog bind:this={importDialog} aria-label="Import shared piece" onclose={() => (incoming = null)}>
+  {#if incoming}
+    <h3>Import shared piece?</h3>
+    <p><strong>{incoming.title}</strong> · {incoming.piece.measures.length} measures</p>
+    <p class="mut">Shared links contain the markup (tempos, meters, repeats), not the score. You can attach your own PDF afterwards.</p>
+    <div class="row">
+      <Button variant="primary" onclick={() => void acceptImport()}>Import</Button>
+      <Button onclick={() => importDialog.close()}>Cancel</Button>
+    </div>
+  {/if}
+</dialog>
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
 {#if status}<p class="status" role="status">{status}</p>{/if}
 <main>
-  <div class="score"><PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} /></div>
+  <div class="score">
+    {#if doc || app.piece.measures.length === 0}
+      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} />
+    {:else}
+      <MeasureStrip />
+    {/if}
+  </div>
   <Sheet><Inspector onplay={play} /><StructureEditor /></Sheet>
 </main>
 
@@ -188,6 +230,8 @@
   .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
   .status { margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
+  dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); max-width: min(420px, calc(100vw - 2 * var(--space-4))); }
+  dialog::backdrop { background: var(--scrim); }
   main { display: grid; grid-template-columns: 1fr; }
   .score { overflow: auto; padding: var(--space-2); padding-bottom: 45vh; background: var(--surface); } /* room for the phone bottom sheet */
   @media (min-width: 900px) {
