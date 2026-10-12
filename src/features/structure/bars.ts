@@ -10,6 +10,7 @@ export const barsIn = (m: { marks?: Marks }) => (m.marks?.multirest && m.marks.m
 export function barLabels(measures: { marks?: Marks }[]): string[] {
   let n = 1;
   return measures.map((m) => {
+    if (m.marks?.part?.restart) n = 1;
     const bars = barsIn(m);
     const label = bars > 1 ? `${n}–${n + bars - 1}` : String(n);
     n += bars;

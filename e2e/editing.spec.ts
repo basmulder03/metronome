@@ -279,7 +279,7 @@ test.describe('multi-measure rests', () => {
     const lib = page.getByRole('dialog', { name: 'Library' });
     await lib.getByRole('button', { name: 'Duplicate' }).click(); // a copy has no PDF, so it shows the grid
     await lib.getByRole('listitem').filter({ hasText: '(copy)' }).getByRole('button', { name: 'Open' }).click();
-    await expect(page.getByRole('button', { name: 'Measures 2–4' })).toBeVisible();
+    for (const n of [2, 3, 4]) await expect(page.getByRole('button', { name: `Measure ${n}` })).toBeVisible(); // a rest is written out bar by bar without the PDF
     await expect(page.getByRole('button', { name: 'Measure 5' })).toBeVisible();
   });
 });

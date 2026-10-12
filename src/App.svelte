@@ -46,6 +46,7 @@
   useUser(userId);
 
   let doc = $state<PDFDocumentProxy | null>(null);
+  let preview = $state(false); // show the no-PDF view that a share link opens with
   let pageNum = $state(0);
   let zoom = $state(1);
   let mode = $state<'draw' | 'split' | 'select'>('draw');
@@ -489,6 +490,7 @@
 {#if current}
   <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
     {#if app.selected >= 0}<Button size="sm" onclick={() => run({ type: 'tidy' })} title="Same top and height for the whole row, bars connected (T)">Tidy row</Button>{/if}
+    <Button size="sm" disabled={!doc} onclick={() => (preview = !preview)} aria-pressed={preview} title="Show the piece the way someone sees it from a share link, without your PDF">{preview ? 'Back to score' : 'Preview share view'}</Button>
     <span class="saved" aria-live="polite">{savedText}</span>
     {#if parts.length}
       <label class="part">Part
@@ -511,7 +513,7 @@
 <main data-piece={lib.currentId ?? ""}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
   <div class="score" role="region" aria-label="Score" tabindex="0">
-    {#if doc || app.piece.measures.length === 0}
+    {#if (doc && !preview) || app.piece.measures.length === 0}
       <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} {snap} onstep={() => edits.checkpoint()} />
     {:else}
       <MeasureStrip />

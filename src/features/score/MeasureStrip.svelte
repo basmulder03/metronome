@@ -1,9 +1,12 @@
 <script lang="ts">
   import { app } from '../../shared/store.svelte';
-  import { barLabels } from '../structure/bars';
+  import { barLabels, barsIn, firstBar } from '../structure/bars';
   import { boxLabel, inRamp } from './labels';
 
   const bars = $derived(barLabels(app.piece.measures));
+  // Another player's part has other rests, so without the PDF a multi-measure rest is written out as one tile per bar.
+  const tiles = $derived(app.piece.measures.flatMap((m, i) =>
+    Array.from({ length: barsIn(m) }, (_, k) => ({ i, k, id: `${m.id}.${k}`, bar: String(+firstBar(bars[i]) + k) }))));
 
   // Without a PDF the piece is shown as a grid of measure tiles: pick one to start from, the playing one lights up.
   $effect(() => {
@@ -12,10 +15,10 @@
 </script>
 
 <div class="strip" role="group" aria-label="Measures">
-  {#each app.piece.measures as m, i (m.id)}
-    <button type="button" class="tile" aria-pressed={i === app.selected} aria-label="{bars[i].includes('–') ? 'Measures' : 'Measure'} {bars[i]}" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(app.piece, i)} onclick={() => (app.selected = i)}>
-      <span class="n">{bars[i]}</span>
-      <span class="tag">{boxLabel(app.piece, i)}</span>
+  {#each tiles as { i, k, id, bar } (id)}
+    <button type="button" class="tile" aria-pressed={i === app.selected} aria-label="Measure {bar}" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(app.piece, i)} onclick={() => (app.selected = i)}>
+      <span class="n">{bar}</span>
+      <span class="tag">{k === 0 ? boxLabel(app.piece, i) : 'rest'}</span>
     </button>
   {/each}
 </div>

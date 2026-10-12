@@ -21,6 +21,26 @@
   function startPart(on: boolean) {
     if (m) setMark(m, 'part', on ? { name: nextName } : undefined);
   }
+  // endings: a bracket covers several bars that all play on the same passes, so the choice is applied to a run of bars
+  const sameVolta = (a?: number[], b?: number[]) => !!a && !!b && a.join() === b.join();
+  const endingLength = $derived.by(() => {
+    let n = 1;
+    while (m && sameVolta(m.marks?.volta, app.piece.measures[app.selected + n]?.marks?.volta) && !app.piece.measures[app.selected + n]?.marks?.repeatStart) n++;
+    return n;
+  });
+  function applyVolta(from: number, len: number, volta: number[] | undefined) {
+    for (let i = 0; i < len; i++) { const t = app.piece.measures[from + i]; if (t) setMark(t, 'volta', volta); }
+  }
+  function togglePass(pass: number, on: boolean) {
+    const next = [...new Set([...(k.volta ?? []), ...(on ? [pass] : [])])].filter((p) => on || p !== pass).sort();
+    applyVolta(app.selected, endingLength, next.length ? next : undefined);
+  }
+  function setEndingLength(n: number) {
+    if (!k.volta || !(n >= 1)) return;
+    const len = Math.floor(n), cur = endingLength;
+    applyVolta(app.selected + len, Math.max(0, cur - len), undefined); // shrinking releases the bars cut off
+    applyVolta(app.selected, len, k.volta);
+  }
   function setCount(n: number) {
     if (!m || !(n >= 1)) return;
     setMark(m, part === 'end' ? 'pickup' : 'partial', n);
@@ -38,6 +58,7 @@
           oninput={(e) => setMark(m, 'part', { ...k.part!, name: e.currentTarget.value })} />
       </label>
       <label class="check"><input type="checkbox" checked={!!k.part.pause} onchange={(e) => setMark(m, 'part', { ...k.part!, pause: e.currentTarget.checked || undefined })} /> Always stop after this part, even when playing straight through</label>
+      <label class="check"><input type="checkbox" checked={!!k.part.restart} onchange={(e) => setMark(m, 'part', { ...k.part!, restart: e.currentTarget.checked || undefined })} /> Bar numbers start again at 1 here</label>
     {/if}
   </section>
 
@@ -91,14 +112,19 @@
         <label>Plays in total<input type="number" min="2" max="8" value={k.repeatEnd} onchange={(e) => setMark(m, 'repeatEnd', Math.max(2, +e.currentTarget.value || 2))} /></label>
       {/if}
     </div>
-    <label>Ending
-      <select value={k.volta?.[0] ?? ''} onchange={(e) => setMark(m, 'volta', e.currentTarget.value ? [+e.currentTarget.value] : undefined)}>
-        <option value="">Always plays</option>
-        <option value="1">1st ending</option>
-        <option value="2">2nd ending</option>
-        <option value="3">3rd ending</option>
-      </select>
-    </label>
+    <fieldset>
+      <legend>Plays on pass (tick several for a bracket like 1. 2.)</legend>
+      <div class="row">
+        {#each [1, 2, 3, 4] as pass (pass)}
+          <label class="check"><input type="checkbox" checked={!!k.volta?.includes(pass)} onchange={(e) => togglePass(pass, e.currentTarget.checked)} /> {pass}{['st', 'nd', 'rd', 'th'][pass - 1]}</label>
+        {/each}
+      </div>
+      {#if k.volta}
+        <label>Bars in this ending (from here)
+          <input type="number" min="1" max="64" value={endingLength} onchange={(e) => setEndingLength(+e.currentTarget.value)} />
+        </label>
+      {/if}
+    </fieldset>
     <label>Jump after this measure
       <select value={k.jump ?? ''} onchange={(e) => setMark(m, 'jump', (e.currentTarget.value || undefined) as 'dc' | 'ds' | undefined)}>
         <option value="">None</option>
@@ -117,5 +143,7 @@
 
 <style>
   section { border-top: 1px solid var(--border); padding: var(--space-3) 0; display: grid; gap: var(--space-2); }
+  fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+  legend { font-size: var(--font-sm); color: var(--fg-muted); padding: 0; margin-bottom: var(--space-1); }
   h4 { margin: 0 0 var(--space-1); font-size: 13px; color: var(--fg-muted); }
 </style>

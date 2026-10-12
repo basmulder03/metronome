@@ -24,3 +24,11 @@ describe('bar numbers', () => {
     expect(firstBar('7')).toBe('7');
   });
 });
+
+describe('numbering restarts at a part', () => {
+  it('starts again at 1 where the part asks for it', async () => {
+    const { barLabels } = await import('./bars');
+    const ms = [{}, { marks: { multirest: 3 } }, { marks: { part: { name: 'II', restart: true } } }, {}];
+    expect(barLabels(ms)).toEqual(['1', '2–4', '1', '2']);
+  });
+});

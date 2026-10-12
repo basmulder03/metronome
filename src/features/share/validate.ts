@@ -13,7 +13,7 @@ function marks(v: unknown): Marks | undefined {
   if (int(v.repeatEnd, 2, 16)) out.repeatEnd = v.repeatEnd;
   if (Array.isArray(v.volta) && v.volta.length <= 4 && v.volta.every((n) => int(n, 1, 8))) out.volta = v.volta as number[];
   if (v.jump === 'dc' || v.jump === 'ds') out.jump = v.jump;
-  if (isObj(v.part) && typeof v.part.name === 'string' && v.part.name.length <= 80) out.part = { name: v.part.name, ...(v.part.pause === true && { pause: true }) };
+  if (isObj(v.part) && typeof v.part.name === 'string' && v.part.name.length <= 80) out.part = { name: v.part.name, ...(v.part.pause === true && { pause: true }), ...(v.part.restart === true && { restart: true }) };
   if (int(v.multirest, 2, 999)) out.multirest = v.multirest;
   if (int(v.pickup, 1, 64)) out.pickup = v.pickup;
   if (int(v.partial, 1, 64)) out.partial = v.partial;

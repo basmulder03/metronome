@@ -99,3 +99,16 @@ describe('copyright guard', () => {
     expect(JSON.stringify(out.piece)).not.toContain('JVBERi'); // base64 PDF header
   });
 });
+
+describe('compact links', () => {
+  it('round-trips boxes to 4 decimals and is much shorter than a verbose encoding', async () => {
+    const ms = Array.from({ length: 300 }, (_, i) => ({ id: crypto.randomUUID(), page: i % 10, rect: { x: (i % 5) / 5 + 0.0123456, y: 0.1234567, w: 0.1876543, h: 0.0612345 }, ...(i === 3 && { marks: { multirest: 4 } }) }));
+    const piece = { measures: ms, meters: [], tempos: [], ramps: [], countIn: 0 };
+    const code = await encodeShare('t', piece as never);
+    expect(code.length).toBeLessThan(2500);
+    const back = await decodeShare(code);
+    expect(back!.piece.measures).toHaveLength(300);
+    expect(back!.piece.measures[3].marks).toEqual({ multirest: 4 });
+    expect(back!.piece.measures[1].rect.x).toBeCloseTo(ms[1].rect.x, 4);
+  });
+});
