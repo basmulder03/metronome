@@ -12,16 +12,20 @@
     "e2e": "playwright test",
     "server:setup": "bash server/setup.sh",
     "server": "server/bin/pocketbase serve --http=127.0.0.1:8090 --dir=server/pb_data --migrationsDir=server/pb_migrations",
-    "start": "npm run build && server/bin/pocketbase serve --http=0.0.0.0:8090 --publicDir=dist --dir=server/pb_data --migrationsDir=server/pb_migrations"
+    "start": "npm run build && server/bin/pocketbase serve --http=0.0.0.0:8090 --publicDir=dist --dir=server/pb_data --migrationsDir=server/pb_migrations",
+    "predev": "node scripts/copy-ocr-assets.mjs",
+    "prebuild": "node scripts/copy-ocr-assets.mjs"
   },
   "dependencies": {
     "pdfjs-dist": "^6.4.299",
-    "pocketbase": "^0.28.1"
+    "pocketbase": "^0.28.1",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.64.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tesseract.js-data/eng": "^1.0.0",
     "@types/node": "^26.6.5",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",

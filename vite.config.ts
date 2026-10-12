@@ -26,7 +26,14 @@ export default defineConfig({
         ],
       },
       // everything the app needs, including the pdf.js worker, is precached so it works offline
-      workbox: { globPatterns: ['**/*.{js,mjs,css,html,svg,png}'], maximumFileSizeToCacheInBytes: 3_000_000, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api/, /^\/_\//] },
+      workbox: {
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png}'],
+        globIgnores: ['ocr/**'], // 12 MB of OCR engine: not precached, cached the first time someone uses OCR
+        maximumFileSizeToCacheInBytes: 3_000_000,
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/, /^\/_\//],
+        runtimeCaching: [{ urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'), handler: 'CacheFirst', options: { cacheName: 'ocr', expiration: { maxEntries: 8 } } }],
+      },
     }),
   ],
   server: { proxy },

@@ -4,3 +4,5 @@ e2e/score.pdf
 e2e/score-b.pdf
 test-results
 playwright-report
+
+public/ocr/
