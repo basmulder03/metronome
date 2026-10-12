@@ -101,7 +101,8 @@ export function suggestFromText(pages: PageText[], piece: Pick<Piece, 'measures'
 
     // tempo marks: "= 130", with the note glyph just before it (as its own item or inside the same string)
     for (const it of p.items) {
-      const t = /^(.*?)=\s*(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*$/.exec(it.str);
+      // "♩ = 130" anywhere in the run (OCR can glue neighbouring text to it); the glyph is whatever is just before the "="
+      const t = /^(?:.*\s)?(\S{0,3})\s*=\s*(\d{2,3})(?:\s*[-–]\s*\d{2,3})?(?:\s.*)?$/.exec(it.str);
       if (!t) continue;
       const bpm = +t[2];
       if (bpm < 20 || bpm > 400) continue;
@@ -118,10 +119,14 @@ export function suggestFromText(pages: PageText[], piece: Pick<Piece, 'measures'
 
     // rit./accel. words and "a tempo"
     for (const it of p.items) {
-      const word = RAMP_WORDS.find((w) => w.re.test(it.str));
+      // OCR returns "molto" and "rall." as separate words on slightly different baselines: pick up a neighbouring modifier
+      const modifier = p.items.find((o) => /^(molto|poco)\.?$/i.test(o.str.trim()) && it.x - (o.x + o.w) < it.size * 2 && it.x - (o.x + o.w) > -it.size * 0.5 && Math.abs(o.y - it.y) < it.size * 3);
+      const str = modifier && !/^(molto|poco)\b/i.test(it.str) ? `${modifier.str.trim()} ${it.str.trim()}` : it.str;
+      const word = RAMP_WORDS.find((w) => w.re.test(str));
       if (word) {
-        const at = locate(measures, p.page, nx(it.x + 1), ny(it.y), true);
-        if (at >= 0) add({ id: '', kind: 'ramp', from: at, to: at, startBpm: 0, endBpm: word.factor, text: it.str.trim() || word.label }, p.page, it.y, it.x, at, it.size);
+        const x = modifier ? Math.min(modifier.x, it.x) : it.x;
+        const at = locate(measures, p.page, nx(x + 1), ny(it.y), true);
+        if (at >= 0) add({ id: '', kind: 'ramp', from: at, to: at, startBpm: 0, endBpm: word.factor, text: str.trim() || word.label }, p.page, it.y, x, at, it.size);
       } else if (A_TEMPO.test(it.str)) {
         const at = locate(measures, p.page, nx(it.x + 1), ny(it.y), true);
         if (at >= 0) add({ id: '', kind: 'tempo', measure: at, bpm: -1, unit: { den: 4, dotted: false }, text: 'a tempo', low: true }, p.page, it.y, it.x, at, it.size);

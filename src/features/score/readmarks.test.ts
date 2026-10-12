@@ -85,6 +85,13 @@ describe('suggestFromText', () => {
     expect(ramp).toMatchObject({ from: 4, to: 4 }); // ends before the tempo mark at measure 6
   });
 
+  it('attaches a separate "molto" word to the rit. next to it (as OCR returns them)', () => {
+    const items = [item('q', 104, SYS0_TOP - 12, 13, 5), item('=130', 110, SYS0_TOP - 12), item('molto', 0.43 * W, SYS1_TOP - 12, 13, 32), item('rall.', 0.43 * W + 36, SYS1_TOP - 4, 13, 24)];
+    const ramp = suggestFromText(page(...items), piece()).find((x) => x.kind === 'ramp')!;
+    expect(ramp).toMatchObject({ from: 4, endBpm: Math.round(130 * 0.55) });
+    expect(ramp.text).toContain('molto rall.');
+  });
+
   it('plain rit. and accel. use gentler factors, and a tempo is the one in force', () => {
     const items = [item('q', 104, SYS0_TOP - 12, 13, 5), item('=100', 110, SYS0_TOP - 12), item('rit.', 0.43 * W, SYS0_TOP - 12, 13, 20), item('accel.', 0.43 * W, SYS1_TOP - 12, 13, 30)];
     const s = suggestFromText(page(...items), piece());
