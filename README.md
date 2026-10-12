@@ -34,6 +34,20 @@ proxy with HTTPS in front of it (the service worker and installability need HTTP
 Hardening that ships with the migrations: owner-only access rules, login/registration rate limits, and a schema with
 no file field at all, so a score cannot be uploaded even by a hand-made request.
 
+### Editing the measure boxes
+
+- **Auto-detect** finds the measures on *every* page in one go. Running it again never wipes your work: the n-th box on a page
+  keeps its tempo, time signature and repeat marks and only gets a new shape. That is also how you reuse a click track for
+  another part of the same score: in the Library, *Duplicate* the piece (it copies the tempos, meters and boxes, not the
+  PDF), *Attach PDF* or *Replace PDF* with the other part, open it and run Auto-detect.
+- **Drag** a box to move it; drag a handle on a selected box to resize an edge. A barline that two boxes share moves both, so
+  dragging a bar resizes the two measures around it. **Split** (tap a barline) and **Merge** fix wrongly found or missed bars.
+- Every edit can be undone with Ctrl+Z (a whole drag is one step).
+- **Keyboard** (press `?` in the app for the list): ← → select a measure, Delete removes the box, Alt+arrows move it,
+  Alt+Shift+arrows resize it, `,` and `.` move the barline after it (hold Shift for bigger steps), `M` merges with the next
+  measure, `D`/`S`/`V` switch mode, Space plays or stops, Esc deselects, F2 renames. Shortcuts pause while you type in a field
+  or have a dialog open.
+
 ### Accounts and administration
 
 Nobody can create an account directly through the API. Accounts come from the register route, which follows the
@@ -93,7 +107,7 @@ Vertical slices under `src/features`, shared pieces under `src/shared`:
 
 | Slice | What it owns |
 | --- | --- |
-| `score` | PDF page view, measure boxes (draw / split), barline auto-detection, reading marks from the PDF (text layer or OCR), measure grid |
+| `score` | PDF page view, measure boxes (draw / split / merge / drag), keyboard shortcuts, barline auto-detection, reading marks from the PDF (text layer or OCR), measure grid |
 | `tempo-map` | Timeline engine (meters, tempos, bezier ramps, pickups, fermatas, count-in), inspector, curve editor, tap tempo |
 | `structure` | Repeats, endings, D.C./D.S. and how they unroll into a playing order |
 | `playback` | Click scheduling on the audio clock, offline WAV rendering |

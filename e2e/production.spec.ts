@@ -22,7 +22,7 @@ test('the built app and the API work from a single server', async ({ page, reque
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByText('Open PDF')).toBeVisible();
 
-  await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.locator('.box')).toHaveCount(8);

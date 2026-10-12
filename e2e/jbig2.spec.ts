@@ -6,7 +6,7 @@ test('a multi-page JBIG2 scan renders its pages instead of blank paper', async (
   const warnings: string[] = [];
   page.on('console', (m) => { if (/jbig2|wasm|Unable to decode|Dependent image/i.test(m.text())) warnings.push(m.text()); });
   await page.goto('/');
-  await page.locator('input[type=file]').setInputFiles('e2e/fixtures/jbig2-scan.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/jbig2-scan.pdf');
   await expect(page.getByText('1/3')).toBeVisible();
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
 
@@ -29,4 +29,17 @@ test('a multi-page JBIG2 scan renders its pages instead of blank paper', async (
     expect(await inkShare(), `page ${n}`).toBeGreaterThan(0.01);
   }
   expect(warnings).toEqual([]);
+});
+
+test('one Auto-detect click finds the measures on every page of a multi-page score', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/jbig2-scan.pdf');
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Auto-detect' }).click();
+  await expect(page.getByRole('status')).toContainText('on 3 of 3 pages');
+  for (const n of [2, 3]) {
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByText(`${n}/3`)).toBeVisible();
+    await expect.poll(() => page.locator('.box').count(), { message: `boxes on page ${n}` }).toBeGreaterThan(20);
+  }
 });

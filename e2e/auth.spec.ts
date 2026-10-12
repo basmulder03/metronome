@@ -68,7 +68,7 @@ test('two accounts in one browser never see each other\'s library', async ({ pag
 
   await page.goto('/');
   await signIn(a);
-  await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.waitForTimeout(300);
   await signOut();
@@ -124,7 +124,7 @@ test('sign out and remove my data wipes this device but the account keeps the ma
   };
   await page.goto('/');
   await signIn();
-  await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.locator('.box')).toHaveCount(8);

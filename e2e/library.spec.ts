@@ -3,7 +3,7 @@ import { makePdf } from './make-pdf.mjs';
 
 test.beforeAll(() => makePdf('e2e/score.pdf'));
 
-const open = (page: import('@playwright/test').Page, file: string) => page.locator('input[type=file]').setInputFiles(file);
+const open = (page: import('@playwright/test').Page, file: string) => page.locator('header input[type=file]').setInputFiles(file);
 
 async function drawOne(page: import('@playwright/test').Page) {
   const score = page.locator('.page');
@@ -34,7 +34,7 @@ test('library keeps separate pieces and switches between them', async ({ page })
   const dlg = page.getByRole('dialog', { name: 'Library' });
   await expect(dlg.getByRole('listitem')).toHaveCount(2);
   await expect(dlg).toContainText('1 measures');
-  await expect(dlg).toContainText('31 measures');
+  await expect(dlg).toContainText('65 measures'); // both pages of the score
   await dlg.getByRole('listitem').filter({ hasText: /\b1 measures/ }).getByRole('button', { name: 'Open' }).click();
   await expect(page.locator('.box')).toHaveCount(1);
   await expect(page.getByText('1/1')).toBeVisible(); // piece A's PDF is a single page

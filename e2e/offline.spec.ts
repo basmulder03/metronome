@@ -25,7 +25,7 @@ test('works offline after the first visit, including a saved piece and its PDF',
   await page.goto('/');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
 
-  await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.locator('.box')).toHaveCount(8);

@@ -6,7 +6,7 @@ test('real score: mark first system, set 3/4 at 130, export matches 6 bars', asy
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.locator('input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(141); // A4
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();

@@ -8,7 +8,7 @@ test.beforeAll(() => { makePdf('e2e/score.pdf'); copyFileSync('e2e/score.pdf', '
 /** A piece of 8 detected measures at 400 bpm (0.6 s per bar, 4.8 s total). */
 async function addPiece(page: Page, file: string) {
   const before = (await page.locator('main').getAttribute('data-piece')) ?? '';
-  await page.locator('input[type=file]').setInputFiles(file);
+  await page.locator('header input[type=file]').setInputFiles(file);
   await expect(page.locator('main')).not.toHaveAttribute('data-piece', before); // the new piece is open
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(133);

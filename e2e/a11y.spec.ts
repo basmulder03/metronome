@@ -28,7 +28,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
     test('editor with a piece selected, inspector open', async ({ page }) => {
       await page.goto('/');
-      await page.locator('input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
+      await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
       await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
       await page.getByRole('button', { name: 'Auto-detect' }).click();
       await page.locator('.box').nth(2).click();
@@ -83,7 +83,7 @@ for (const scheme of ['light', 'dark'] as const) {
     test('measure grid without a PDF', async ({ page, browser }) => {
       // build a piece without a PDF by importing a share link
       await page.goto('/');
-      await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+      await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
       await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
       await page.getByRole('button', { name: 'Auto-detect' }).click();
       await page.locator('.box').first().click();

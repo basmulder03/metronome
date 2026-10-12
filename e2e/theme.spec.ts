@@ -63,6 +63,6 @@ test('score page stays white in dark mode so notation remains legible', async ({
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.locator('input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
   expect(await page.locator('.page').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 255, 255)');
 });

@@ -24,7 +24,14 @@ export async function signInContext(context: import('@playwright/test').BrowserC
 }
 
 /** Tests get a signed-in browser by default; `user` is the account behind it. */
-export const test = base.extend<{ user: TestUser }>({
+export const test = base.extend<{ user: TestUser; pageErrors: void }>({
+  // an uncaught error in the page fails the test, even if everything the test looks at still works
+  pageErrors: [async ({ page }, use) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await use();
+    expect(errors, 'uncaught errors in the page').toEqual([]);
+  }, { auto: true }],
   user: async ({}, use) => use(await createUser()),
   context: async ({ context, user }, use) => {
     await signInContext(context, user);

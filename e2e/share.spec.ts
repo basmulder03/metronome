@@ -7,7 +7,7 @@ test.beforeAll(() => makePdf('e2e/score.pdf'));
 /** The owner uploads a PDF, detects 8 measures, sets tempo 88 and a repeat, and returns a share link. */
 async function shareLink(page: Page) {
   await page.goto('/');
-  await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(133);
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
@@ -51,7 +51,7 @@ test('a signed-out guest can play a shared link read-only, with their own PDF', 
   await g.getByRole('button', { name: 'Export WAV' }).click();
   expect((await dl).suggestedFilename()).toContain('.wav');
 
-  await g.locator('input[type=file]').setInputFiles('e2e/score.pdf'); // their own copy of the score
+  await g.locator('header input[type=file]').setInputFiles('e2e/score.pdf'); // their own copy of the score
   await expect(g.locator('.box')).toHaveCount(8);
   await expect(g.locator('.box').nth(0)).toContainText('=88');
   await guestCtx.close();

@@ -8,7 +8,7 @@ test('the app runs under its content security policy without violations', async 
   const violations: string[] = [];
   page.on('console', (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
   await page.goto('/');
-  await page.locator('input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
+  await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
   await expect(page.locator('.box').first()).toBeVisible();

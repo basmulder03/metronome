@@ -11,7 +11,7 @@ async function openAndMark(page: Page) {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.locator('input[type=file]').setInputFiles(PDF);
+  await page.locator('header input[type=file]').setInputFiles(PDF);
   await expect(page.getByText('1/1')).toBeVisible();
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(133); // PDF aspect applied
