@@ -44,7 +44,7 @@
 
 <style>
   dialog { width: min(560px, calc(100vw - 2 * var(--space-4))); max-height: 80vh; overflow: auto; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); }
-  dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+  dialog::backdrop { background: var(--scrim); }
   .head { display: flex; justify-content: space-between; align-items: center; }
   h3 { margin: 0; }
   ul { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
