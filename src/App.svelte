@@ -23,7 +23,7 @@
   import { auth, signOut } from './features/auth/auth.svelte';
   import { hooks, startSync, sync, syncNow } from './features/sync/sync.svelte';
   import { onDestroy } from 'svelte';
-  import { useDatabase } from './shared/idb';
+  import { useDatabase, wipeDatabase } from './shared/idb';
   import Button from './shared/ui/Button.svelte';
   import Segmented from './shared/ui/Segmented.svelte';
   import Sheet from './shared/ui/Sheet.svelte';
@@ -236,6 +236,18 @@
     found = null;
   }
 
+  /** For shared computers: push what is pending, delete this account's local library and PDFs, then sign out. */
+  async function signOutAndWipe() {
+    if (!confirm('Remove all your pieces and saved PDFs from this device and sign out? Your markup stays in your account; the PDFs only exist on your devices, so they are gone from this one.')) return;
+    await syncNow();
+    if (sync.status !== 'idle' && !confirm('Your latest changes could not be synced (offline?). If you continue they are lost. Continue anyway?')) return;
+    clearTimeout(saveTimer);
+    stopSync();
+    await wipeDatabase();
+    try { localStorage.removeItem(`metronome.last.${userId}`); } catch { /* nothing to remove */ }
+    signOut();
+  }
+
   const pages = $derived(doc?.numPages ?? 1);
 </script>
 
@@ -286,6 +298,7 @@
         <Button size="sm" onclick={() => void syncNow()} disabled={sync.status === 'syncing'}>Sync now</Button>
         <span class="mut">Signed in as {auth.user?.email}</span>
         <Button size="sm" onclick={signOut}>Sign out</Button>
+        <Button size="sm" onclick={() => void signOutAndWipe()} title="For shared computers">Sign out and remove my data from this device</Button>
       </div>
     </div>
   </details>

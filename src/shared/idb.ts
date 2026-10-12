@@ -13,6 +13,18 @@ export function useDatabase(name: string) {
   dbp = undefined;
 }
 
+/** Delete the current account's database from this device. Close any handle first or the delete waits for it. */
+export async function wipeDatabase() {
+  const name = dbName;
+  if (dbp) { (await dbp).close(); dbp = undefined; }
+  await new Promise<void>((res, rej) => {
+    const r = indexedDB.deleteDatabase(name);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => res(); // another tab still holds it open: it is deleted as soon as that tab lets go
+  });
+}
+
 const db = () =>
   (dbp ??= new Promise((res, rej) => {
     const r = indexedDB.open(dbName, 2);
