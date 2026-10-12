@@ -8,6 +8,9 @@
   import StructureEditor from './features/structure/StructureEditor.svelte';
   import Inspector from './features/tempo-map/Inspector.svelte';
   import MeasureStrip from './features/score/MeasureStrip.svelte';
+  import ReadMarksDialog from './features/score/ReadMarksDialog.svelte';
+  import { applySuggestions, suggestFromText, type PageText, type Suggestion } from './features/score/readmarks';
+  import { readPageText } from './features/score/textlayer';
   import PdfView from './features/score/PdfView.svelte';
   import { codeFromHash, decodeShare } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
@@ -176,6 +179,32 @@
     status = `Found ${found.length} measures — check them, then fix any misses with Draw/Split.`;
   }
 
+  let found = $state<Suggestion[] | null>(null);
+  let readDialog = $state<ReadMarksDialog>();
+
+  /** Look for tempo marks, time signatures and rit./accel. words in the PDF's own text; the user reviews them before anything changes. */
+  async function readFromPdf() {
+    if (!doc) return;
+    status = 'Reading text from the PDF…';
+    const texts: PageText[] = [];
+    for (let i = 0; i < doc.numPages; i++) if (app.piece.measures.some((m) => m.page === i)) texts.push(await readPageText(doc, i));
+    const s = suggestFromText(texts, app.piece);
+    if (!s.length) {
+      status = texts.every((t) => !t.items.length)
+        ? 'This PDF has no text layer (it is probably a scan), so there is nothing to read. Set tempos and time signatures in the editor.'
+        : 'No tempo marks, time signatures or rit./accel. words found. Set them in the editor.';
+      return;
+    }
+    status = '';
+    found = s;
+    queueMicrotask(() => readDialog?.show());
+  }
+  function addFound(chosen: Suggestion[]) {
+    const { applied, skipped } = applySuggestions(app.piece, chosen);
+    status = `Added ${applied}${skipped ? `, kept ${skipped} you had already set` : ''}. Check them in the editor.`;
+    found = null;
+  }
+
   const pages = $derived(doc?.numPages ?? 1);
 </script>
 
@@ -194,6 +223,7 @@
   </span>
   <span class="grp">
     <Button onclick={autoDetect} disabled={!doc} title="Find staves and barlines on this page">Auto-detect</Button>
+    <Button onclick={() => void readFromPdf()} disabled={!doc || !app.piece.measures.length} title="Read tempo marks, time signatures and rit./accel. from the PDF's text">Read from PDF</Button>
     <Segmented bind:value={mode} options={[
       { value: 'draw', label: 'Draw', title: 'Drag a box around each staff line' },
       { value: 'split', label: 'Split', title: 'Tap a barline to split a box' },
@@ -241,6 +271,7 @@
     </div>
   {/if}
 </dialog>
+{#if found}{#key found}<ReadMarksDialog bind:this={readDialog} suggestions={found} onapply={addFound} oncancel={() => (found = null)} />{/key}{/if}
 <PlaylistPanel bind:this={playlistPanel} {subdivide} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
 {#if status}<p class="status" role="status">{status}</p>{/if}
