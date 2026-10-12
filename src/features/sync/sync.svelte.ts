@@ -2,7 +2,7 @@ import { ClientResponseError, type RecordModel } from 'pocketbase';
 import { onLocalChange } from '../../shared/changes';
 import { pb } from '../../shared/pb';
 import { tombstones, type Kind } from '../../shared/tombstones';
-import { auth } from '../auth/auth.svelte';
+import { auth, endSession } from '../auth/auth.svelte';
 import { applyRemote, dropLocal, lib } from '../library/library.svelte';
 import { applyRemotePlaylist, dropLocalPlaylist, pl, type Playlist } from '../playlist/playlist.svelte';
 import { validatePiece } from '../share/validate';
@@ -99,6 +99,7 @@ export function syncNow(): Promise<void> {
       sync.status = 'idle';
       sync.last = Date.now();
     } catch (e) {
+      if (e instanceof ClientResponseError && e.status === 401) { endSession(); return; } // blocked or removed while signed in
       sync.status = isNetwork(e) ? 'offline' : 'error';
     } finally { running = null; }
   })();

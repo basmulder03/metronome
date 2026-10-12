@@ -15,6 +15,8 @@
   --danger: light-dark(#c92a2a, #ff8787);
   --warn: light-dark(#e8590c, #ffa94d);
   --warn-text: light-dark(#a8420a, #ffa94d); /* small text needs more contrast than the border colour */
+  --qr-dark: #000000; /* a QR code must stay black on white in either theme to scan reliably */
+  --qr-light: #ffffff;
   --shadow: light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.6));
   --scrim: rgb(0 0 0 / 0.5);
 
