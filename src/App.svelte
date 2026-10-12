@@ -8,7 +8,10 @@
   import StructureEditor from './features/structure/StructureEditor.svelte';
   import Inspector from './features/tempo-map/Inspector.svelte';
   import PdfView from './features/score/PdfView.svelte';
-  import { app, save, timeline } from './shared/store.svelte';
+  import { app, timeline } from './shared/store.svelte';
+  import { emptyPiece } from './shared/types';
+  import LibraryPanel from './features/library/LibraryPanel.svelte';
+  import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, saveCurrent } from './features/library/library.svelte';
   import Button from './shared/ui/Button.svelte';
   import Segmented from './shared/ui/Segmented.svelte';
   import Sheet from './shared/ui/Sheet.svelte';
@@ -26,8 +29,42 @@
   let view: PdfView;
   let status = $state('');
 
-  // Autosave: reading the whole piece makes this re-run on any markup edit.
-  $effect(() => { JSON.stringify(app.piece); save(); });
+  let libraryPanel: LibraryPanel;
+  let saveTimer = 0;
+  // Autosave: reading the whole piece makes this re-run on any markup edit; writes are debounced.
+  $effect(() => {
+    JSON.stringify(app.piece);
+    if (!lib.currentId) return;
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => void saveCurrent(app.piece), 100);
+  });
+
+  const load = async (blob: Blob) => pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+
+  /** Switch the editor to a library piece (and its PDF, when it has one). */
+  async function openEntry(id: string, pdf?: Blob) {
+    const e = entry(id);
+    if (!e) return;
+    player.stop();
+    clearTimeout(saveTimer);
+    await saveCurrent(app.piece);
+    // load the PDF first so the piece and its page swap in together
+    const blob = pdf ?? (e.hasPdf ? await loadPdf(id) : undefined);
+    const next = blob ? await load(blob) : null;
+    lib.currentId = id;
+    rememberLast(id);
+    app.piece = structuredClone($state.snapshot(e.piece)) as typeof app.piece;
+    app.selected = -1;
+    pageNum = 0;
+    doc = next;
+  }
+
+  // Restore the last piece (with its PDF) on startup.
+  void (async () => {
+    await init();
+    const id = lastId();
+    if (id && entry(id)) await openEntry(id);
+  })();
 
   const player = new Player();
   player.onMeasure = (m) => {
@@ -38,10 +75,19 @@
   player.onStop = () => { playing = false; app.playing = -1; };
 
   async function open(e: Event) {
-    const f = (e.currentTarget as HTMLInputElement).files?.[0];
+    const input = e.currentTarget as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = ''; // allow picking the same file again
     if (!f) return;
-    doc = await pdfjs.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
-    pageNum = 0;
+    const cur = entry(lib.currentId);
+    if (cur && !cur.hasPdf) { // a piece without a PDF (e.g. from a shared link) gets this one
+      await attachPdf(cur.id, f);
+      doc = await load(f);
+      pageNum = 0;
+      return;
+    }
+    const id = await create(f.name.replace(/\.pdf$/i, ''), f, emptyPiece());
+    await openEntry(id, f);
   }
 
   async function play(from: number, to: number, loop: boolean) {
@@ -66,8 +112,8 @@
   }
 
   /** Replace this page's boxes with detected ones; events on removed measures are dropped, others stay attached. */
-  function autoDetect() {
-    const found = detectMeasures(view.bitmap());
+  async function autoDetect() {
+    const found = detectMeasures(await view.bitmap());
     if (!found.length) { status = 'No staves found on this page — draw the boxes by hand.'; return; }
     const ms = app.piece.measures;
     if (ms.some((m) => m.page === pageNum) && !confirm('Replace the measure boxes on this page?')) return;
@@ -83,7 +129,8 @@
 </script>
 
 <header>
-  <label class="file">Open PDF<input type="file" accept="application/pdf" onchange={open} hidden /></label>
+  <label class="file">{entry(lib.currentId) && !entry(lib.currentId)?.hasPdf ? 'Attach PDF' : 'Open PDF'}<input type="file" accept="application/pdf" onchange={open} hidden /></label>
+  <Button onclick={() => libraryPanel.show()}>Library</Button>
   <span class="grp">
     <Button disabled={pageNum === 0} onclick={() => pageNum--} aria-label="Previous page">‹</Button>
     <span>{pageNum + 1}/{pages}</span>
@@ -125,6 +172,7 @@
   </details>
 </header>
 
+<LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onclose={() => {}} />
 {#if status}<p class="status" role="status">{status}</p>{/if}
 <main>
   <div class="score"><PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} /></div>

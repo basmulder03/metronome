@@ -9,8 +9,9 @@
 {#if m}
   <section>
     <h4>Length and holds</h4>
+    <p class="mut">Leave empty for a full bar. For a pickup, enter how many beats the bar really has (e.g. 1 in 4/4).</p>
     <div class="row">
-      <label>Pickup: beats present
+      <label>Beats in this measure (pickup)
         <input type="number" min="1" max="32" placeholder="full" value={k.pickup ?? ''} onchange={(e) => setMark(m, 'pickup', +e.currentTarget.value || undefined)} />
       </label>
     </div>

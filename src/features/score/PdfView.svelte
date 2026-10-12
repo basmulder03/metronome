@@ -9,8 +9,11 @@
 
   let canvas: HTMLCanvasElement;
 
-  /** Pixels of the rendered page, for barline detection. */
-  export function bitmap() {
+  let rendering: Promise<void> = Promise.resolve();
+
+  /** Pixels of the rendered page, for barline detection. Waits for any render in flight so it never reads a stale page. */
+  export async function bitmap() {
+    await rendering;
     return canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
   }
 
@@ -22,7 +25,7 @@
     let task: RenderTask | undefined;
     let dead = false;
     const width = zoom; // read here so the effect re-runs when zoom changes
-    void (async () => {
+    rendering = (async () => {
       const page = await doc.getPage(pageNum + 1);
       if (dead) return;
       const base = page.getViewport({ scale: 1 });
