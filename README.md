@@ -34,6 +34,36 @@ proxy with HTTPS in front of it (the service worker and installability need HTTP
 Hardening that ships with the migrations: owner-only access rules, login/registration rate limits, and a schema with
 no file field at all, so a score cannot be uploaded even by a hand-made request.
 
+### Accounts and administration
+
+Nobody can create an account directly through the API. Accounts come from the register route, which follows the
+registration mode, and there are two roles: *user* and *admin*.
+
+**Create the first administrator** (once, on the server; the app cannot safely create its own first admin):
+
+```bash
+server/bin/pocketbase migrate up --dir=server/pb_data --migrationsDir=server/pb_migrations --hooksDir=server/pb_hooks
+server/bin/pocketbase make-admin you@example.com 'a-long-password' --dir=server/pb_data --migrationsDir=server/pb_migrations --hooksDir=server/pb_hooks
+```
+
+(`make-admin EMAIL` without a password promotes an account that already exists.) Then sign in: an **Admin** button appears.
+
+**Registration mode** (Admin, Settings): *Invitation only* is the default. *Anyone can register* lets people sign up
+themselves. Invitations work in both modes.
+
+**Invitations** (Admin, Invitations): give a name, optionally an email address to lock it to, and a lifetime. No email is
+sent. Show the **QR code** or copy the link and hand it over yourself. The person opens it, picks a password and has an
+account. An invitation works once, expires, and can be revoked while waiting. The link is signed (HMAC) with a secret that
+never leaves the server, so it cannot be forged or altered, and the server records its single use inside a transaction,
+so two people racing on one link cannot both get in. Treat a link like a key: whoever opens it first gets the account.
+You can show the QR again for any invitation that is still waiting.
+
+**Blocking** (Admin, Users): *Block* signs the person out of every device at once, stops new sign-ins ("This account
+has been blocked") and denies their data, with an optional reason only admins see. *Unblock* restores access. You can
+also promote or demote admins and delete a user with their data. Administrators cannot block, demote or delete
+themselves, so you cannot lock yourself out. All of this is enforced on the server; hiding the panel from non-admins is only
+a courtesy.
+
 ### Behind a reverse proxy (read this before going live)
 
 - **Tell PocketBase the real client address, or the login limit locks everyone out.** PocketBase limits logins per IP
@@ -43,9 +73,8 @@ no file field at all, so a score cannot be uploaded even by a hand-made request.
 - **Add security headers at the proxy.** The app ships a Content-Security-Policy as a `<meta>` tag, which cannot carry
   `frame-ancestors`. Send `Content-Security-Policy: frame-ancestors 'none'` (or `X-Frame-Options: DENY`),
   `X-Content-Type-Options: nosniff` and `Strict-Transport-Security` from the proxy.
-- **Registration is open and storage is not capped per user.** Each piece may hold up to 1 MB of markup (real ones are
-  about 10 KB) and there is no limit on how many. On a public server, close registration (the `users` collection's create
-  rule in the dashboard) or add a quota.
+- **Storage is not capped per user.** Each piece may hold up to 1 MB of markup (real ones are about 10 KB) and there is no
+  limit on how many. Keep registration on *Invitation only* on a public server, and block anyone who abuses it.
 
 ## Test it
 
@@ -71,7 +100,7 @@ Vertical slices under `src/features`, shared pieces under `src/shared`:
 | `library` | Pieces and their PDFs, stored on the device (IndexedDB, one database per account) |
 | `playlist` | Ordered pieces, sequential playback, one-file export |
 | `share` | Link codec and validation (untrusted input), read-only guest view |
-| `auth`, `sync` | Sign-in and last-write-wins sync of markup between devices |
+| `auth`, `admin`, `sync` | Sign-in and invitations, the admin panel (invitations with QR, users, registration mode), last-write-wins sync of markup between devices |
 
 Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dark()`, a test that rejects raw colours).
 
