@@ -32,8 +32,20 @@ proxy with HTTPS in front of it (the service worker and installability need HTTP
 `server/pb_data`; back that folder up.
 
 Hardening that ships with the migrations: owner-only access rules, login/registration rate limits, and a schema with
-no file field at all, so a score cannot be uploaded even by a hand-made request. Registration is open by default; to
-close it, open the dashboard at `/_/` and change the `users` collection's create rule.
+no file field at all, so a score cannot be uploaded even by a hand-made request.
+
+### Behind a reverse proxy (read this before going live)
+
+- **Tell PocketBase the real client address, or the login limit locks everyone out.** PocketBase limits logins per IP
+  address (10 a minute). Behind a proxy every request comes from the proxy's address, so a few wrong passwords would block
+  all users. In the dashboard (`/_/`) go to Settings, Application, and set the *User IP proxy headers* to
+  `X-Forwarded-For`. Only do that when PocketBase is reachable *only* through your proxy, otherwise anyone can fake the header.
+- **Add security headers at the proxy.** The app ships a Content-Security-Policy as a `<meta>` tag, which cannot carry
+  `frame-ancestors`. Send `Content-Security-Policy: frame-ancestors 'none'` (or `X-Frame-Options: DENY`),
+  `X-Content-Type-Options: nosniff` and `Strict-Transport-Security` from the proxy.
+- **Registration is open and storage is not capped per user.** Each piece may hold up to 1 MB of markup (real ones are
+  about 10 KB) and there is no limit on how many. On a public server, close registration (the `users` collection's create
+  rule in the dashboard) or add a quota.
 
 ## Test it
 
@@ -73,3 +85,4 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
 - **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.
 - **Sync pulls everything each time**, which is fine for a personal library, not for thousands of pieces.
 - **Count-in** uses the first measure's meter and tempo; fermatas apply on every pass of a repeat.
+- **WAV export** renders in two-minute chunks but is assembled in memory at 2 bytes per sample (about 320 MB per hour of audio); the app asks before exports longer than 30 minutes.

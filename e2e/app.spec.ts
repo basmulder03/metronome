@@ -254,3 +254,26 @@ test('a second ramp cannot overlap the first', async ({ page }) => {
   await page.getByLabel('Last measure').blur();
   await expect(page.getByLabel('Last measure')).toHaveValue('3');
 });
+
+test('a very long export asks first and cancelling downloads nothing', async ({ page }) => {
+  await openAndMark(page); // 4 measures
+  await page.locator('.box').first().click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  await page.getByLabel('BPM').first().fill('20');
+  await page.getByRole('button', { name: 'Change time signature here' }).click();
+  await page.getByLabel('Beats', { exact: true }).fill('32'); // 32 beats at 20 bpm = 96 s per bar
+  await page.locator('.box').nth(3).click();
+  await page.getByLabel('Repeat ends here').check();
+  await page.getByLabel('Plays in total').fill('8'); // 4 bars x 96 s x 8 plays = about 51 minutes
+  await page.getByLabel('Plays in total').blur();
+
+  let message = '';
+  let downloaded = false;
+  page.on('download', () => (downloaded = true));
+  page.once('dialog', (d) => { message = d.message(); void d.dismiss(); });
+  await page.getByRole('button', { name: 'Export WAV' }).click();
+  await expect.poll(() => message).toMatch(/51 minutes.*MB.*memory/);
+  await page.waitForTimeout(800);
+  expect(downloaded).toBe(false);
+  await expect(page.getByRole('button', { name: 'Export WAV' })).toBeEnabled();
+});
