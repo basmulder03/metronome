@@ -26,7 +26,7 @@ test('real score: mark first system, set 3/4 at 130, export matches 6 bars', asy
   await page.getByRole('button', { name: 'Select' }).click();
   await page.locator('.box').first().click();
   await page.getByRole('button', { name: 'Change time signature here' }).click();
-  await page.getByLabel('Beats').fill('3');
+  await page.getByLabel('Beats', { exact: true }).fill('3');
   await page.getByLabel('Note').selectOption('4');
   await page.getByRole('button', { name: 'Set tempo here' }).click();
   await page.getByLabel('BPM').first().fill('130');

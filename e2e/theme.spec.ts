@@ -42,6 +42,7 @@ test('theme toggle overrides the OS, persists, and returns to system', async ({ 
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await page.getByText('Options').click();
   const toggle = page.getByRole('button', { name: /^Theme:/ });
   await expect(toggle).toHaveAccessibleName('Theme: system');
   await toggle.click(); // light
@@ -50,6 +51,7 @@ test('theme toggle overrides the OS, persists, and returns to system', async ({ 
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(22, 22, 26)'); // OS says light, override wins
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByText('Options').click();
   await expect(page.getByRole('button', { name: /^Theme:/ })).toHaveAccessibleName('Theme: dark');
   await page.getByRole('button', { name: /^Theme:/ }).click(); // system
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');

@@ -40,7 +40,7 @@ test('mark up a PDF, set meter and tempo, labels show on the boxes', async ({ pa
   await page.getByRole('button', { name: 'Set tempo here' }).click();
   await page.getByLabel('BPM').first().fill('120');
   await page.getByRole('button', { name: 'Change time signature here' }).click();
-  await page.getByLabel('Beats').fill('7');
+  await page.getByLabel('Beats', { exact: true }).fill('7');
   await page.getByLabel('Note').selectOption('8');
   await expect(page.getByLabel('Grouping')).toHaveValue('1+1+1+1+1+1+1');
   await page.getByLabel('Grouping').fill('2+2+3');
@@ -190,4 +190,31 @@ test('structure marks survive a reload', async ({ page }) => {
   await page.getByLabel('Segno', { exact: true }).check();
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('metronome.piece')!).measures[2].marks)).toEqual({ segno: true });
+});
+
+test('count-in adds bars to playback and export', async ({ page }) => {
+  await openAndMark(page);
+  await setTempo(page, '120'); // 4 bars = 8 s
+  await page.getByText('Options').click();
+  await page.getByLabel('Count-in').selectOption('1');
+  expect(await wavSeconds(page)).toBeCloseTo(10.5, 0); // 2 s count-in + 8 s + tail
+  await page.getByLabel('Count-in').selectOption('2');
+  expect(await wavSeconds(page)).toBeCloseTo(12.5, 0);
+});
+
+test('pickup shortens the first bar and a fermata stretches a beat', async ({ page }) => {
+  await openAndMark(page);
+  await setTempo(page, '120');
+  await page.locator('.box').nth(0).click();
+  await page.getByLabel('Pickup: beats present').fill('1');
+  await page.getByLabel('Pickup: beats present').blur();
+  await expect(page.locator('.box').nth(0)).toContainText('pickup 1');
+  expect(await wavSeconds(page)).toBeCloseTo(7, 1); // 0.5 s pickup + 3 bars x 2 s + 0.5 s tail
+  await page.locator('.box').nth(3).click();
+  await page.getByLabel('Fermata').check();
+  await page.getByLabel('On beat').fill('4');
+  await page.getByLabel('On beat').blur();
+  await page.getByLabel('Hold ×').fill('3');
+  await page.getByLabel('Hold ×').blur();
+  expect(await wavSeconds(page)).toBeCloseTo(8, 1); // fermata x3 adds two beats (1 s)
 });
