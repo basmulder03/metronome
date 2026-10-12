@@ -4,7 +4,10 @@
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn } from './features/tempo-map/timeline';
   import { detectMeasures } from './features/score/detect';
-  import { insertMeasures, removeMeasure } from './features/score/markup';
+  import { dragEdge, mergeMeasures, moveBox, removeMeasure, replaceBoxes } from './features/score/markup';
+  import { actionFor, type Action } from './features/score/shortcuts';
+  import ShortcutsDialog from './features/score/ShortcutsDialog.svelte';
+  import { createHistory } from './shared/history';
   import StructureEditor from './features/structure/StructureEditor.svelte';
   import Inspector from './features/tempo-map/Inspector.svelte';
   import MeasureStrip from './features/score/MeasureStrip.svelte';
@@ -20,7 +23,7 @@
   import PlaylistPanel from './features/playlist/PlaylistPanel.svelte';
   import { initPlaylists } from './features/playlist/playlist.svelte';
   import LibraryPanel from './features/library/LibraryPanel.svelte';
-  import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, saveCurrent, useUser } from './features/library/library.svelte';
+  import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, rename, saveCurrent, useUser } from './features/library/library.svelte';
   import { auth, signOut } from './features/auth/auth.svelte';
   import { hooks, startSync, sync, syncNow } from './features/sync/sync.svelte';
   import { onDestroy } from 'svelte';
@@ -56,10 +59,13 @@
   let libraryPanel: LibraryPanel;
   let playlistPanel: PlaylistPanel;
   let adminPanel = $state<AdminPanel>();
+  let shortcutsDialog = $state<ShortcutsDialog>();
   let saveTimer = 0;
+  // Undo and redo over the piece (named `edits`: `history` is the browser's own, used for the address bar below)
+  const edits = createHistory(JSON.stringify(emptyPiece()));
   // Autosave: reading the whole piece makes this re-run on any markup edit; writes are debounced.
   $effect(() => {
-    JSON.stringify(app.piece);
+    edits.note(JSON.stringify(app.piece));
     if (!lib.currentId) return;
     clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => void saveCurrent(app.piece), 100);
@@ -80,6 +86,7 @@
     lib.currentId = id;
     rememberLast(id);
     app.piece = structuredClone($state.snapshot(e.piece)) as typeof app.piece;
+    edits.reset(JSON.stringify(app.piece));
     app.selected = -1;
     pageNum = 0;
     doc = next;
@@ -94,7 +101,7 @@
       if (kind !== 'pieces' || id !== lib.currentId) return;
       if (what === 'dropped') { app.piece = emptyPiece(); app.selected = -1; doc = null; status = 'This piece was deleted on another device.'; return; }
       const e = entry(id);
-      if (e) app.piece = structuredClone($state.snapshot(e.piece)) as typeof app.piece;
+      if (e) { app.piece = structuredClone($state.snapshot(e.piece)) as typeof app.piece; edits.reset(JSON.stringify(app.piece)); }
     };
     stopSync = startSync();
     const id = lastId();
@@ -174,18 +181,84 @@
     } finally { busy = false; }
   }
 
-  /** Replace this page's boxes with detected ones; events on removed measures are dropped, others stay attached. */
+  /**
+   * Find the measures on every page. Pages that already have boxes keep what the user set on them (tempos, time signatures,
+   * repeat marks) and only get new shapes, so re-running this after a correction, or on another part's PDF, loses nothing.
+   */
   async function autoDetect() {
-    const found = detectMeasures(await view!.bitmap());
-    if (!found.length) { status = 'No staves found on this page — draw the boxes by hand.'; return; }
-    const ms = app.piece.measures;
-    if (ms.some((m) => m.page === pageNum) && !confirm('Replace the measure boxes on this page?')) return;
-    for (let i = ms.length - 1; i >= 0; i--) if (ms[i].page === pageNum) removeMeasure(app.piece, i);
-    const at = ms.findIndex((m) => m.page > pageNum);
-    insertMeasures(app.piece, at < 0 ? ms.length : at, found.map((rect) => ({ id: crypto.randomUUID(), page: pageNum, rect })));
+    if (!doc || !view) return;
+    edits.checkpoint(); // detecting is one undo step
+    let total = 0, pagesWith = 0;
+    for (let i = 0; i < doc.numPages; i++) {
+      status = `Detecting measures… page ${i + 1} of ${doc.numPages}`;
+      const rects = detectMeasures(await view.bitmap(1400, i));
+      if (!rects.length) continue; // leave a page alone that shows no staves (a title page, say)
+      replaceBoxes(app.piece, i, rects);
+      total += rects.length;
+      pagesWith++;
+    }
     app.selected = -1;
     mode = 'select';
-    status = `Found ${found.length} measures — check them, then fix any misses with Draw/Split.`;
+    status = total
+      ? `Found ${total} measures on ${pagesWith} of ${doc.numPages} pages. Tempos and time signatures you had set are kept. Check the boxes, then fix misses by dragging, with Split (S) or Merge (M).`
+      : 'No staves found — draw the boxes by hand.';
+  }
+
+  const current = $derived(entry(lib.currentId));
+  async function renameCurrent() {
+    if (!current) return;
+    const t = prompt('Rename this piece', current.title);
+    if (t) await rename(current.id, t);
+  }
+
+  /** Carry out a keyboard shortcut. Edits to the piece go through the same code as the mouse and buttons. */
+  function run(a: Action) {
+    const ms = app.piece.measures;
+    const i = app.selected;
+    const has = i >= 0 && i < ms.length;
+    switch (a.type) {
+      case 'delete':
+        if (!has) return;
+        edits.checkpoint();
+        removeMeasure(app.piece, i);
+        app.selected = Math.min(i, ms.length - 1); // the next box takes its place
+        break;
+      case 'select': {
+        if (!ms.length) return;
+        app.selected = Math.min(ms.length - 1, Math.max(0, has ? i + a.delta : 0));
+        if (doc) pageNum = ms[app.selected].page;
+        break;
+      }
+      case 'nudge': if (has) moveBox(app.piece, i, a.dx, a.dy); break;
+      case 'resize': if (has) { if (a.dw) dragEdge(app.piece, i, 'right', a.dw); if (a.dh) dragEdge(app.piece, i, 'bottom', a.dh); } break;
+      case 'bar': if (has) dragEdge(app.piece, i, 'right', a.dx); break;
+      case 'mode': mode = a.mode; break;
+      case 'merge':
+        if (has) edits.checkpoint();
+        if (has && !mergeMeasures(app.piece, i)) status = 'Nothing to merge with: the next measure has to be on the same page.';
+        break;
+      case 'play': if (playing) player.stop(); else void playFromSelected(); break;
+      case 'escape': if (playing) player.stop(); else app.selected = -1; break;
+      case 'undo': case 'redo': {
+        const json = a.type === 'undo' ? edits.undo() : edits.redo();
+        if (json) { app.piece = JSON.parse(json); app.selected = Math.min(app.selected, app.piece.measures.length - 1); }
+        break;
+      }
+      case 'rename': void renameCurrent(); break;
+      case 'help': shortcutsDialog?.show(); break;
+    }
+  }
+
+  function onKey(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    const action = actionFor(e, {
+      typing: !!t && (t.matches('input, textarea, select') || t.isContentEditable),
+      modal: !!document.querySelector('dialog[open]'),
+      onButton: !!t && t.matches('button, summary, a, [role=button]'),
+    });
+    if (!action) return;
+    e.preventDefault();
+    run(action);
   }
 
   let found = $state<Suggestion[] | null>(null);
@@ -251,6 +324,9 @@
   const pages = $derived(doc?.numPages ?? 1);
 </script>
 
+<svelte:window onkeydown={onKey} />
+
+<div class="shell">
 <header>
   <label class="file">{entry(lib.currentId) && !entry(lib.currentId)?.hasPdf ? 'Attach PDF' : 'Open PDF'}<input type="file" accept="application/pdf" onchange={open} hidden /></label>
   <Button onclick={() => libraryPanel.show()}>Library</Button>
@@ -294,6 +370,7 @@
         </select>
       </label>
       <label>Theme <ThemeToggle /></label>
+      <Button size="sm" onclick={() => shortcutsDialog?.show()}>Keyboard shortcuts (?)</Button>
       <div class="acct">
         <span class="mut">{sync.status === 'syncing' ? 'Syncing…' : sync.status === 'offline' ? 'Offline: changes sync when you reconnect' : sync.status === 'error' ? 'Sync failed, try again' : sync.last ? 'Up to date' : 'Not synced yet'}</span>
         <Button size="sm" onclick={() => void syncNow()} disabled={sync.status === 'syncing'}>Sync now</Button>
@@ -316,10 +393,15 @@
     </div>
   {/if}
 </dialog>
+<ShortcutsDialog bind:this={shortcutsDialog} />
 {#if found}{#key found}<ReadMarksDialog bind:this={readDialog} suggestions={found} onapply={addFound} oncancel={() => (found = null)} />{/key}{/if}
 {#if auth.user?.role === 'admin'}<AdminPanel bind:this={adminPanel} />{/if}
 <PlaylistPanel bind:this={playlistPanel} {subdivide} />
-<LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} />
+<LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onreplace={async (id, blob) => { if (id === lib.currentId) { doc = await load(blob); pageNum = 0; } }} />
+{#if current}
+  <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button></div>
+{/if}
+
 {#if status}
   <div class="status" role="status">
     <span>{status}</span>
@@ -330,13 +412,14 @@
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
   <div class="score" role="region" aria-label="Score" tabindex="0">
     {#if doc || app.piece.measures.length === 0}
-      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} />
+      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} onstep={() => edits.checkpoint()} />
     {:else}
       <MeasureStrip />
     {/if}
   </div>
   <Sheet><Inspector onplay={play} /><StructureEditor /></Sheet>
 </main>
+</div>
 
 <style>
   header { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
@@ -348,14 +431,18 @@
   .acct .mut { margin: 0; font-size: var(--font-sm); overflow-wrap: anywhere; }
   .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
+  .titlebar { display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); }
+  .titlebar strong { overflow-wrap: anywhere; }
   .status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); max-width: min(420px, calc(100vw - 2 * var(--space-4))); }
   dialog::backdrop { background: var(--scrim); }
+  .shell { display: flex; flex-direction: column; }
   main { display: grid; grid-template-columns: 1fr; }
   .score { overflow: auto; padding: var(--space-2); padding-bottom: 45vh; background: var(--surface); } /* room for the phone bottom sheet */
   @media (min-width: 900px) {
     header { position: sticky; top: 0; }
-    main { grid-template-columns: 1fr 340px; height: calc(100vh - 57px); }
+    .shell { height: 100vh; }
+    main { grid-template-columns: 1fr 340px; flex: 1; min-height: 0; }
     main > :global(aside), .score { overflow: auto; }
     .score { padding-bottom: var(--space-2); }
   }

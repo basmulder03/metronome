@@ -73,6 +73,13 @@ export async function dropLocal(id: string) {
   if (lib.currentId === id) { lib.currentId = null; rememberLast(null); }
 }
 
+/** A copy of a piece's markup under a new name, without the PDF: the same click track can then be attached to another part's PDF. */
+export async function duplicate(id: string): Promise<string | undefined> {
+  const e = entry(id);
+  if (!e) return undefined;
+  return create(`${e.title} (copy)`, undefined, structuredClone($state.snapshot(e.piece)) as Piece);
+}
+
 export async function rename(id: string, title: string) {
   const e = entry(id);
   if (!e || !title.trim()) return;
