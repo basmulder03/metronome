@@ -1,0 +1,87 @@
+import type { Curve, Meter, Piece, Unit } from '../../shared/types';
+import { DEFAULT_BPM, DEFAULT_METER, DEFAULT_UNIT } from '../../shared/types';
+
+/** Click kind: 2 = downbeat, 1 = start of a beat group, 0 = subdivision. */
+export type Beat = { time: number; measure: number; accent: 0 | 1 | 2 };
+export type Timeline = { beats: Beat[]; measureStart: number[]; duration: number };
+
+/** Quarter notes per beat-unit: BPM in `unit` -> quarter-notes per minute is bpm * this. */
+export const unitQuarters = (u: Unit) => (4 / u.den) * (u.dotted ? 1.5 : 1);
+
+export function parseGrouping(text: string, num: number): number[] | null {
+  const g = text.split(/[+\s,]+/).filter(Boolean).map(Number);
+  return g.length && g.every((n) => Number.isInteger(n) && n > 0) && g.reduce((a, b) => a + b) === num ? g : null;
+}
+
+/** Default accent grouping: 3s for compound meters (6, 9, 12 over 8/16), otherwise one beat per unit. */
+export function defaultGrouping(num: number, den: number): number[] {
+  return den >= 8 && num % 3 === 0 && num > 3 ? Array(num / 3).fill(3) : Array(num).fill(1);
+}
+
+/** Evaluate a cubic-bezier easing at progress p in 0..1. */
+export function ease(c: Curve, p: number): number {
+  if (p <= 0) return 0;
+  if (p >= 1) return 1;
+  const [x1, y1, x2, y2] = c;
+  const bez = (t: number, a: number, b: number) => 3 * (1 - t) ** 2 * t * a + 3 * (1 - t) * t * t * b + t ** 3;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (bez(mid, x1, x2) < p) lo = mid; else hi = mid;
+  }
+  return bez((lo + hi) / 2, y1, y2);
+}
+
+const last = <T extends { at: number }>(list: T[], m: number) =>
+  list.filter((e) => e.at <= m).reduce<T | undefined>((a, e) => (!a || e.at >= a.at ? e : a), undefined);
+
+export const meterAt = (p: Piece, m: number): Meter => last(p.meters, m)?.meter ?? DEFAULT_METER;
+
+/** The tempo event in force at measure m (ramps do not count). */
+export const tempoAt = (p: Piece, m: number) => last(p.tempos, m);
+
+const SUBSTEPS = 16;
+
+export function buildTimeline(p: Piece): Timeline {
+  const n = p.measures.length;
+  const meters = Array.from({ length: n }, (_, m) => meterAt(p, m));
+  const lenQ = meters.map((mt) => (mt.num * 4) / mt.den);
+  const startQ: number[] = [];
+  lenQ.reduce((acc, l, m) => ((startQ[m] = acc), acc + l), 0);
+
+  // Piecewise-constant base tempo (quarters/min); a ramp's end value carries on after it unless a tempo event overrides.
+  const base: { at: number; qpm: number }[] = [];
+  for (const t of p.tempos) base.push({ at: t.at, qpm: t.bpm * unitQuarters(t.unit) });
+  for (const r of p.ramps) {
+    const t = tempoAt(p, r.from);
+    base.unshift({ at: r.to + 1, qpm: r.endBpm * unitQuarters(t?.unit ?? DEFAULT_UNIT) });
+  }
+  base.sort((a, b) => a.at - b.at); // stable: explicit tempo events stay after a ramp end at the same measure
+  const baseAt = (m: number) => base.filter((e) => e.at <= m).at(-1)?.qpm ?? DEFAULT_BPM * unitQuarters(DEFAULT_UNIT);
+
+  const rampOf = (m: number) => p.ramps.find((r) => r.from <= m && m <= r.to && r.to < n);
+  const qpmAt = (m: number, q: number) => {
+    const r = rampOf(m);
+    if (!r) return baseAt(m);
+    const u = unitQuarters(tempoAt(p, r.from)?.unit ?? DEFAULT_UNIT);
+    const span = startQ[r.to] + lenQ[r.to] - startQ[r.from];
+    return (r.startBpm + (r.endBpm - r.startBpm) * ease(r.curve, (q - startQ[r.from]) / span)) * u;
+  };
+
+  const beats: Beat[] = [];
+  const measureStart: number[] = [];
+  let time = 0;
+  for (let m = 0; m < n; m++) {
+    measureStart.push(time);
+    const { num, den, grouping } = meters[m];
+    const step = 4 / den;
+    const groupStarts = new Set(grouping.reduce<number[]>((a, g) => [...a, (a.at(-1) ?? 0) + g], [0]));
+    for (let k = 0; k < num; k++) {
+      beats.push({ time, measure: m, accent: k === 0 ? 2 : groupStarts.has(k) ? 1 : 0 });
+      // midpoint rule over the step: 60/qpm integrated across the quarter-note span
+      const h = step / SUBSTEPS;
+      for (let s = 0; s < SUBSTEPS; s++) time += (60 / qpmAt(m, startQ[m] + k * step + (s + 0.5) * h)) * h;
+    }
+  }
+  return { beats, measureStart, duration: time };
+}
