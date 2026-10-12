@@ -8,6 +8,8 @@
   let { doc, pageNum, zoom, mode }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select' } = $props();
 
   let canvas: HTMLCanvasElement;
+  let renderedWidth = 0; // width the page was last drawn at (plain variable: reading it must not re-run the render)
+  let resizeTick = $state(0);
 
   /**
    * Pixels of the current page for barline detection, rendered offscreen at a fixed width so the result does not depend on
@@ -33,12 +35,14 @@
     let task: RenderTask | undefined;
     let dead = false;
     const width = zoom; // read here so the effect re-runs when zoom changes
+    void resizeTick; // and when the window size changed enough to blur the bitmap
     void (async () => {
       const page = await doc.getPage(pageNum + 1);
       if (dead) return;
       const base = page.getViewport({ scale: 1 });
       aspect = base.height / base.width;
       // Render at the displayed pixel width (x devicePixelRatio) to keep memory small on phones.
+      renderedWidth = overlay.clientWidth;
       const target = overlay.clientWidth * Math.min(window.devicePixelRatio, 2);
       const viewport = page.getViewport({ scale: target / base.width });
       canvas.width = viewport.width;
@@ -47,6 +51,17 @@
       await task.promise.then(() => { if (!dead) canvas.dataset.ready = '1'; }, () => {}); // cancelled renders reject; data-ready marks a finished page (used by tests)
     })();
     return () => { dead = true; task?.cancel(); void width; };
+  });
+
+  // Rotating a phone or resizing the window only stretches the old bitmap: draw again once the size has settled.
+  $effect(() => {
+    let t = 0;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(t);
+      t = window.setTimeout(() => { if (renderedWidth && Math.abs(overlay.clientWidth - renderedWidth) / renderedWidth > 0.1) resizeTick++; }, 200);
+    });
+    ro.observe(overlay);
+    return () => { ro.disconnect(); clearTimeout(t); };
   });
 
   // Reading order: later page, lower system, or further right within the same system.
