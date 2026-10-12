@@ -2,7 +2,8 @@
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { openPdf } from './features/score/pdf';
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
-  import { countIn } from './features/tempo-map/timeline';
+  import { countIn, firstStepOf, stopStepFrom } from './features/tempo-map/timeline';
+  import { type Part, partIndexOf, partsOf } from './features/structure/parts';
   import { detectMeasures } from './features/score/detect';
   import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes } from './features/score/markup';
   import { actionFor, type Action } from './features/score/shortcuts';
@@ -157,25 +158,47 @@
     await openEntry(id, f);
   }
 
-  async function play(from: number, to: number, loop: boolean) {
+  async function play(from: number, to: number, loop: boolean, endStep?: number) {
     if (!app.piece.measures.length) return;
     const tl = timeline();
-    const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to)[0], app.piece.countIn ?? 0);
-    playing = await player.play(tl, from, to, loop, { subdivide }, pre);
+    const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to, endStep)[0], app.piece.countIn ?? 0);
+    playing = await player.play(tl, from, to, loop, { subdivide }, pre, endStep);
+    if (playing && endStep !== undefined) void announceStop(tl, endStep);
   }
-  const playFromSelected = () => play(Math.max(app.selected, 0), app.piece.measures.length - 1, false);
 
-  async function exportWav() {
+  /** The sheet has several parts and playback stopped at the end of one: get the next part ready, so Space or Play continues. */
+  async function announceStop(tl: ReturnType<typeof timeline>, endStep: number) {
+    if (!(await player.whenDone)) return; // stopped by the player, not by reaching the end of the part
+    const next = tl.steps[endStep + 1];
+    if (!next) return;
+    app.selected = next.measure;
+    if (doc) pageNum = app.piece.measures[next.measure].page;
+    status = `End of “${tl.parts[tl.partOfStep[endStep]].name}”. Press Space or Play to continue with “${tl.parts[tl.partOfStep[endStep + 1]].name}”.`;
+  }
+
+  /** Play from the selected measure to the end, or to the end of its part when the sheet is set to stop after each part (or the part is flagged). */
+  function playFromSelected() {
+    const tl = timeline();
+    const from = Math.max(app.selected, 0);
+    const end = stopStepFrom(tl, firstStepOf(tl, from), app.piece.afterPart ?? 'continue');
+    return play(from, app.piece.measures.length - 1, false, end);
+  }
+
+  async function exportWav(part?: Part) {
     if (!app.piece.measures.length) return;
     const tl = timeline();
-    const job = clickEvents(tl, 0, app.piece.measures.length - 1, { subdivide }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
+    const last = app.piece.measures.length - 1;
+    // one part: from its first measure to where the played order leaves it
+    const end = part ? stopStepFrom(tl, firstStepOf(tl, part.start), 'stop') : undefined;
+    const [from, to] = part ? [part.start, part.end] : [0, last];
+    const job = clickEvents(tl, from, to, { subdivide }, countIn(app.piece, tl, beatRange(tl, from, to, end)[0], app.piece.countIn ?? 0), end);
     const warning = longExportWarning(job.seconds);
     if (warning && !confirm(warning)) return;
     busy = true;
     progress = 0;
     try {
       const blob = await renderJob(job, (f) => (progress = f));
-      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'click-track.wav' });
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: part ? `${current?.title ?? 'click-track'} - ${part.name}.wav` : 'click-track.wav' });
       a.click();
       URL.revokeObjectURL(a.href);
     } finally { busy = false; }
@@ -205,6 +228,14 @@
   }
 
   const current = $derived(entry(lib.currentId));
+  const parts = $derived(partsOf(app.piece.measures));
+  const selectedPart = $derived(app.selected >= 0 ? partIndexOf(parts, app.selected) : -1);
+  function goToPart(i: number) {
+    const part = parts[i];
+    if (!part) return;
+    app.selected = part.start;
+    if (doc) pageNum = app.piece.measures[part.start].page;
+  }
   async function renameCurrent() {
     if (!current) return;
     const t = prompt('Rename this piece', current.title);
@@ -254,7 +285,8 @@
     const action = actionFor(e, {
       typing: !!t && (t.matches('input, textarea, select') || t.isContentEditable),
       modal: !!document.querySelector('dialog[open]'),
-      onButton: !!t && t.matches('button, summary, a, [role=button]'),
+      // a measure box or tile is a button too, but Space on it should play: clicking already selects it
+      onButton: !!t && t.matches('button, summary, a, [role=button]') && !t.matches('.box, .tile'),
     });
     if (!action) return;
     e.preventDefault();
@@ -356,7 +388,7 @@
     {:else}
       <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${app.selected + 1}` : 'Play'}>Play</Button>
     {/if}
-    <Button disabled={busy} onclick={exportWav}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export WAV'}</Button>
+    <Button disabled={busy} onclick={() => void exportWav()}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export WAV'}</Button>
   </span>
   <details class="opts end">
     <summary>Options</summary>
@@ -369,6 +401,14 @@
           <option value={2}>2 bars</option>
         </select>
       </label>
+      {#if parts.length}
+        <label>At the end of a part
+          <select value={app.piece.afterPart ?? 'continue'} onchange={(e) => (app.piece.afterPart = e.currentTarget.value === 'stop' ? 'stop' : undefined)}>
+            <option value="continue">Keep playing</option>
+            <option value="stop">Stop and wait</option>
+          </select>
+        </label>
+      {/if}
       <label>Theme <ThemeToggle /></label>
       <Button size="sm" onclick={() => shortcutsDialog?.show()}>Keyboard shortcuts (?)</Button>
       <div class="acct">
@@ -399,7 +439,17 @@
 <PlaylistPanel bind:this={playlistPanel} {subdivide} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onreplace={async (id, blob) => { if (id === lib.currentId) { doc = await load(blob); pageNum = 0; } }} />
 {#if current}
-  <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button></div>
+  <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
+    {#if parts.length}
+      <label class="part">Part
+        <select aria-label="Go to part" value={selectedPart} onchange={(e) => goToPart(+e.currentTarget.value)}>
+          {#if selectedPart < 0}<option value={-1}>Choose…</option>{/if}
+          {#each parts as pt (pt.index)}<option value={pt.index}>{pt.name}{pt.pause ? ' ⏸' : ''}</option>{/each}
+        </select>
+      </label>
+      <Button size="sm" disabled={selectedPart < 0 || busy} onclick={() => void exportWav(parts[selectedPart])} title="Export only the selected part as audio">Export this part</Button>
+    {/if}
+  </div>
 {/if}
 
 {#if status}
@@ -433,6 +483,7 @@
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
   .titlebar { display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); }
   .titlebar strong { overflow-wrap: anywhere; }
+  .titlebar .part { flex-direction: row; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--fg); font-size: var(--font-md); }
   .status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); max-width: min(420px, calc(100vw - 2 * var(--space-4))); }
   dialog::backdrop { background: var(--scrim); }

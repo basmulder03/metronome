@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from '../../shared/store.svelte';
   import { setMark } from './marks';
+  import { defaultPartName } from './parts';
 
   const m = $derived(app.selected >= 0 ? app.piece.measures[app.selected] : undefined);
   const k = $derived(m?.marks ?? {});
@@ -15,6 +16,11 @@
     setMark(m, 'pickup', next === 'end' ? n : undefined);
     setMark(m, 'partial', next === 'start' ? n : undefined);
   }
+  // a sheet that holds several parts (movements, sections): a part starts at a marked measure and has a name
+  const nextName = $derived(defaultPartName(app.piece.measures, app.selected));
+  function startPart(on: boolean) {
+    if (m) setMark(m, 'part', on ? { name: nextName } : undefined);
+  }
   function setCount(n: number) {
     if (!m || !(n >= 1)) return;
     setMark(m, part === 'end' ? 'pickup' : 'partial', n);
@@ -22,6 +28,19 @@
 </script>
 
 {#if m}
+  <section>
+    <h4>Parts of this sheet</h4>
+    <p class="mut">If one sheet holds several parts (movements, sections), mark where each starts and name it. Playback can then stop after each part, or play straight through.</p>
+    <label class="check"><input type="checkbox" checked={!!k.part} onchange={(e) => startPart(e.currentTarget.checked)} /> A new part starts at this measure</label>
+    {#if k.part}
+      <label>Name of the part
+        <input maxlength="80" value={k.part.name} placeholder={nextName}
+          oninput={(e) => setMark(m, 'part', { ...k.part!, name: e.currentTarget.value })} />
+      </label>
+      <label class="check"><input type="checkbox" checked={!!k.part.pause} onchange={(e) => setMark(m, 'part', { ...k.part!, pause: e.currentTarget.checked || undefined })} /> Always stop after this part, even when playing straight through</label>
+    {/if}
+  </section>
+
   <section>
     <h4>Length and holds</h4>
     <p class="mut">For an upbeat, mark the first bar as "only the last beats". A piece that began with one usually ends with a bar that is "only the first beats", which completes it.</p>
