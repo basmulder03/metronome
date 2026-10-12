@@ -34,6 +34,19 @@ proxy with HTTPS in front of it (the service worker and installability need HTTP
 Hardening that ships with the migrations: owner-only access rules, login/registration rate limits, and a schema with
 no file field at all, so a score cannot be uploaded even by a hand-made request.
 
+### Deploying
+
+How the live server is laid out (behind Cloudflare, next to other sites on the same machine):
+
+- PocketBase runs as its own user from `/opt/metronome` (binary, `pb_public` = the built app, hooks, migrations), data in
+  `/var/lib/metronome/pb_data`, under a hardened systemd unit (`metronome.service`) bound to `127.0.0.1:8090`.
+- nginx has one extra file for the hostname: port 80 only answers Let's Encrypt and redirects, port 443 proxies to PocketBase. It
+  trusts `CF-Connecting-IP` only from Cloudflare's published ranges and passes the visitor's address as `X-Forwarded-For`;
+  PocketBase is set (Settings, User IP proxy headers) to read that header, so the login limit counts visitors, not Cloudflare.
+- Cloudflare's SSL mode must be *Full* or *Full (strict)*: with *Flexible* the redirect on port 80 loops.
+- Registration stays *Invitation only*. Back up `/var/lib/metronome/pb_data`.
+- Ship a new build with `DEPLOY_HOST=root@host scripts/deploy.sh`.
+
 ### Editing the measure boxes
 
 - **Auto-detect** finds the measures on *every* page in one go. Running it again never wipes your work: the n-th box on a page
