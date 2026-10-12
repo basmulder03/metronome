@@ -26,7 +26,7 @@ test('create an account, stay signed in across reloads, then sign out', async ({
   await expect(page.getByText('Open PDF')).toBeVisible();
 
   await page.getByText('Options').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
@@ -62,7 +62,7 @@ test('two accounts in one browser never see each other\'s library', async ({ pag
   };
   const signOut = async () => {
     await page.getByText('Options').click();
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   };
 
@@ -112,4 +112,38 @@ test('a server that cannot be reached does not sign anyone out', async ({ browse
   await page.waitForTimeout(500); // give the failed refresh time to settle
   await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
   await ctx.close();
+});
+
+test('sign out and remove my data wipes this device but the account keeps the markup', async ({ page }) => {
+  const u = await createUser();
+  const signIn = async () => {
+    await page.getByLabel('Email').fill(u.email);
+    await page.getByLabel('Password').fill(u.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('button', { name: 'Library' })).toBeVisible();
+  };
+  await page.goto('/');
+  await signIn();
+  await page.locator('input[type=file]').setInputFiles('e2e/score.pdf');
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Auto-detect' }).click();
+  await expect(page.locator('.box')).toHaveCount(8);
+  await page.waitForTimeout(500); // autosave
+
+  await page.getByText('Options').click();
+  page.once('dialog', (d) => { expect(d.message()).toContain('PDFs'); void d.accept(); });
+  await page.getByRole('button', { name: 'Sign out and remove my data from this device' }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
+  // the local database is gone
+  const dbs = await page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
+  expect(dbs.filter((n) => n?.startsWith('metronome-'))).toEqual([]);
+
+  // signing in again restores the markup from the account, but not the PDF
+  await signIn();
+  await page.getByRole('button', { name: 'Library' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Library' });
+  await expect(dlg.getByRole('listitem')).toHaveCount(1);
+  await expect(dlg).toContainText('8 measures');
+  await expect(dlg).toContainText('no PDF attached');
 });

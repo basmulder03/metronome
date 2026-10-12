@@ -277,3 +277,14 @@ test('a very long export asks first and cancelling downloads nothing', async ({ 
   expect(downloaded).toBe(false);
   await expect(page.getByRole('button', { name: 'Export WAV' })).toBeEnabled();
 });
+
+test('the page is drawn again when the window gets a different size', async ({ page }) => {
+  test.skip(page.viewportSize()!.width < 900, 'resizing is exercised on the desktop project');
+  await openAndMark(page);
+  const width = () => page.locator('canvas').evaluate((c) => (c as HTMLCanvasElement).width);
+  const before = await width();
+  await page.setViewportSize({ width: 620, height: 800 });
+  await expect.poll(width, { timeout: 5000 }).toBeLessThan(before * 0.8); // re-rendered smaller, not just stretched
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await expect(page.locator('.box')).toHaveCount(4); // markup is untouched
+});
