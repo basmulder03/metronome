@@ -3,7 +3,7 @@
   import { encodeShare, shareUrl } from '../share/codec';
   import { lib, rename, remove } from './library.svelte';
 
-  let { onopen, onclose }: { onopen: (id: string) => void; onclose: () => void } = $props();
+  let { onopen }: { onopen: (id: string) => void } = $props();
   let dialog: HTMLDialogElement;
 
   export function show() { dialog.showModal(); }
@@ -25,11 +25,12 @@
     try { await navigator.clipboard.writeText(link!.url); copied = true; } catch { /* clipboard blocked: the link is selectable */ }
   }
   function drop(id: string, title: string) {
-    if (confirm(`Delete "${title}" and its PDF from this device?`)) void remove(id);
+    // sync makes a delete global: it also removes the piece, and the PDF saved there, on your other devices
+    if (confirm(`Delete "${title}" from all your devices? The PDF saved with it on each device is deleted too, and cannot be recovered.`)) void remove(id);
   }
 </script>
 
-<dialog bind:this={dialog} aria-label="Library" onclose={onclose}>
+<dialog bind:this={dialog} aria-label="Library">
   <div class="head">
     <h3>Library</h3>
     <Button size="sm" onclick={() => dialog.close()}>Close</Button>

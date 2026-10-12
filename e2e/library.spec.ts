@@ -49,7 +49,7 @@ test('rename and delete from the library', async ({ page }) => {
   page.once('dialog', (d) => void d.accept('My etude'));
   await dlg.getByRole('button', { name: 'Rename' }).click();
   await expect(dlg).toContainText('My etude');
-  page.once('dialog', (d) => void d.accept());
+  page.once('dialog', (d) => { expect(d.message()).toContain('from all your devices'); void d.accept(); }); // sync makes deleting global
   await dlg.getByRole('button', { name: 'Delete' }).click();
   await expect(dlg).toContainText('Nothing saved yet');
 });
