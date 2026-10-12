@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { clickEvents, joinJobs, longExportWarning, renderChunks, wavBlob, type Job } from './audio';
+import { emptyPiece } from '../../shared/types';
+import { buildTimeline } from '../tempo-map/timeline';
+import { beatRange, clickEvents, joinJobs, longExportWarning, renderChunks, wavBlob, type Job } from './audio';
 
 // A fake click: a 1.0 sample at its start and a 0.5 ring over the next 3 samples, like a real click that rings on.
 const SR = 100;
@@ -57,7 +59,7 @@ describe('jobs', () => {
   });
 
   it('builds clicks and length from a timeline, count-in first', () => {
-    const tl = { beats: [{ time: 0, measure: 0, step: 0, accent: 2 as const }, { time: 0.5, measure: 0, step: 0, accent: 1 as const }, { time: 1, measure: 0, step: 0, accent: 0 as const }], steps: [{ measure: 0, time: 0 }], measureCount: 1, duration: 1.5 };
+    const tl = { beats: [{ time: 0, measure: 0, step: 0, accent: 2 as const }, { time: 0.5, measure: 0, step: 0, accent: 1 as const }, { time: 1, measure: 0, step: 0, accent: 0 as const }], steps: [{ measure: 0, time: 0 }], measureCount: 1, duration: 1.5, parts: [], partOfStep: [0] };
     const pre = [{ time: -1, measure: 0, step: -1, accent: 2 as const }, { time: -0.5, measure: 0, step: -1, accent: 0 as const }];
     const job = clickEvents(tl, 0, 0, { subdivide: false }, pre);
     expect(job.events).toEqual([{ t: 0, accent: 2 }, { t: 1, accent: 2 }, { t: 1.5, accent: 1 }]); // subdivision (accent 0) left out
@@ -79,5 +81,29 @@ describe('longExportWarning', () => {
   it('is quiet for normal exports and warns with a size for very long ones', () => {
     expect(longExportWarning(10 * 60)).toBeNull();
     expect(longExportWarning(60 * 60)).toMatch(/60 minutes.*318 MB/);
+  });
+});
+
+describe('beatRange with an explicit end step', () => {
+  // 4 measures of 4/4, a repeat at measure 1: the played order is 0 1 0 1 2 3
+  const mk = () => {
+    const p = emptyPiece();
+    for (let i = 0; i < 4; i++) p.measures.push({ id: `${i}`, page: 0, rect: { x: 0, y: 0, w: 0.1, h: 0.1 } });
+    p.measures[1].marks = { repeatEnd: 2 };
+    p.tempos.push({ at: 0, bpm: 120, unit: { den: 4, dotted: false } });
+    return buildTimeline(p);
+  };
+
+  it('ends after the given step even if the measure it names was already played', () => {
+    const tl = mk();
+    const [i0, iEnd] = beatRange(tl, 0, 3, 3); // through the second pass of the repeat, not to the end
+    expect(i0).toBe(0);
+    expect(tl.beats[iEnd].step).toBe(4); // the next beat belongs to step 4: measure 2
+    expect(iEnd).toBe(16);
+  });
+
+  it('without it the old measure rule applies', () => {
+    const tl = mk();
+    expect(beatRange(tl, 0, 3)[1]).toBe(tl.beats.length);
   });
 });

@@ -1,11 +1,20 @@
 import type { Curve, Meter, Piece, Unit } from '../../shared/types';
+import { type Part, partIndexOf, partsOf } from '../structure/parts';
 import { unroll } from '../structure/unroll';
 import { DEFAULT_BPM, DEFAULT_METER, DEFAULT_UNIT } from '../../shared/types';
 
 /** Click kind: 2 = downbeat, 1 = start of a beat group, 0 = subdivision. */
 export type Beat = { time: number; measure: number; step: number; accent: 0 | 1 | 2 };
 /** One step per measure as played, so a repeated measure appears twice. */
-export type Timeline = { beats: Beat[]; steps: { measure: number; time: number }[]; measureCount: number; duration: number };
+export type Timeline = {
+  beats: Beat[];
+  steps: { measure: number; time: number }[];
+  measureCount: number;
+  duration: number;
+  /** The parts of the sheet (empty if it has none) and, for each played step, which one it is in (-1 for none). */
+  parts: Part[];
+  partOfStep: number[];
+};
 
 /** Quarter notes per beat-unit: BPM in `unit` -> quarter-notes per minute is bpm * this. */
 export const unitQuarters = (u: Unit) => (4 / u.den) * (u.dotted ? 1.5 : 1);
@@ -71,6 +80,22 @@ export function spanOf(p: Piece, m: number): [number, number] {
   return start < end ? [start, end] : [0, num];
 }
 
+/**
+ * The played step after which playback should stop when it starts at `fromStep`, or undefined to play to the end.
+ * Parts end where the played order moves into a different part, so a repeat inside a part does not stop it, and a jump back
+ * (D.C.) ends the part it leaves. `stop` is the piece's "stop after each part" setting; a part flagged `pause` stops either way.
+ */
+export function stopStepFrom(tl: Timeline, fromStep: number, mode: 'continue' | 'stop'): number | undefined {
+  for (let s = fromStep; s < tl.steps.length - 1; s++) {
+    const a = tl.partOfStep[s], b = tl.partOfStep[s + 1];
+    if (a >= 0 && a !== b && (mode === 'stop' || tl.parts[a].pause)) return s;
+  }
+  return undefined;
+}
+
+/** First played step of a written measure. */
+export const firstStepOf = (tl: Timeline, measure: number) => Math.max(0, tl.steps.findIndex((s) => s.measure === measure));
+
 export const meterAt = (p: Piece, m: number): Meter => last(p.meters, m)?.meter ?? DEFAULT_METER;
 
 /** The ramp that covers measure m, if any. Ramps may not overlap: the timeline would only honour the first. */
@@ -131,5 +156,6 @@ export function buildTimeline(p: Piece): Timeline {
       time += fermata?.beat === k ? dt * Math.max(1, fermata.factor) : dt;
     }
   }
-  return { beats, steps, measureCount: n, duration: time };
+  const parts = partsOf(p.measures);
+  return { beats, steps, measureCount: n, duration: time, parts, partOfStep: steps.map((s) => partIndexOf(parts, s.measure)) };
 }

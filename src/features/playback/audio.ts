@@ -23,10 +23,11 @@ const audible = (accent: number, o: ClickOpts) => o.subdivide || accent > 0;
  * Beat range [i0, iEnd) for playing measures from..to (written positions) in playing order.
  * Starts at the first time `from` is played; ends after the first time `to` is played from there (or at the end if `to` is last).
  */
-export function beatRange(tl: Timeline, from: number, to: number): [number, number] {
+export function beatRange(tl: Timeline, from: number, to: number, endStep?: number): [number, number] {
   const s0 = Math.max(0, tl.steps.findIndex((s) => s.measure === from));
   const k = to >= tl.measureCount - 1 ? -1 : tl.steps.findIndex((s, i) => i >= s0 && s.measure === to);
-  const s1 = k < 0 ? tl.steps.length : k + 1;
+  // an explicit last step (the end of a part) wins over the measure: a repeat could play that measure before the part is over
+  const s1 = endStep !== undefined ? Math.min(tl.steps.length, endStep + 1) : k < 0 ? tl.steps.length : k + 1;
   const i0 = tl.beats.findIndex((b) => b.step >= s0);
   const iEnd = s1 >= tl.steps.length ? tl.beats.length : tl.beats.findIndex((b) => b.step >= s1);
   return [i0, iEnd];
@@ -57,12 +58,12 @@ export class Player {
 
   /** Play measures from..to (inclusive), optionally looping; resolves true once started. Must be called from a user gesture. */
   /** `pre` is an optional count-in (beats with negative times relative to the first played beat), sounded once. */
-  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts, pre: Beat[] = []): Promise<boolean> {
+  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts, pre: Beat[] = [], endStep?: number): Promise<boolean> {
     this.stop(false);
     this.ctx ??= new AudioContext();
     await this.ctx.resume();
     const ctx = this.ctx;
-    const [i0, iEnd] = beatRange(tl, from, to);
+    const [i0, iEnd] = beatRange(tl, from, to, endStep);
     if (i0 < 0 || iEnd <= i0) return false;
     this.whenDone = new Promise((res) => (this.settle = res));
     const t0 = tl.beats[i0].time;
@@ -95,7 +96,8 @@ export class Player {
 
     const frame = () => {
       const elapsed = Math.max(0, ctx.currentTime - origin);
-      this.onMeasure(measureAtTime(tl, t0 + (elapsed % span)));
+      // looping wraps round; a single run stays on its last measure until it stops, instead of flashing back to the first
+      this.onMeasure(measureAtTime(tl, t0 + (loop ? elapsed % span : Math.min(elapsed, span - 1e-6))));
       this.raf = requestAnimationFrame(frame);
     };
     frame();
@@ -122,8 +124,8 @@ const TAIL_SECONDS = 0.5; // silence after the last click so the file does not c
 const CLICK_RING = 0.05; // a click rings a little past its start; that part is carried into the next chunk
 
 /** Everything a WAV needs for measures from..to: the clicks (count-in first) and the total length. */
-export function clickEvents(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = []): Job {
-  const [i0, iEnd] = beatRange(tl, from, to);
+export function clickEvents(tl: Timeline, from: number, to: number, opts: ClickOpts, pre: Beat[] = [], endStep?: number): Job {
+  const [i0, iEnd] = beatRange(tl, from, to, endStep);
   const t0 = tl.beats[i0].time;
   const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
   const lead = pre.length ? -pre[0].time : 0;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece, type Piece } from '../../shared/types';
-import { buildTimeline, countIn, ease, maxRampEnd, parseGrouping, rampCovering, spanOf } from './timeline';
+import { buildTimeline, countIn, ease, firstStepOf, maxRampEnd, parseGrouping, rampCovering, spanOf, stopStepFrom } from './timeline';
 
 const piece = (n: number): Piece => {
   const p = emptyPiece();
@@ -176,5 +176,56 @@ describe('upbeats and short bars', () => {
   it('a bar without marks counts in a whole bar, as before', () => {
     const p = at();
     expect(countIn(p, buildTimeline(p), 0, 1)).toHaveLength(4);
+  });
+});
+
+describe('stopping at the end of a part', () => {
+  const sheet = (n: number, marks: Record<number, object>) => {
+    const p = piece(n);
+    p.tempos.push({ at: 0, bpm: 120, unit: q });
+    for (const [i, m] of Object.entries(marks)) p.measures[+i].marks = m;
+    return p;
+  };
+  const parts2 = { 0: { part: { name: 'A' } }, 4: { part: { name: 'B' } } };
+
+  it('a sheet without parts never stops', () => {
+    const tl = buildTimeline(piece(6));
+    expect(tl.parts).toEqual([]);
+    expect(stopStepFrom(tl, 0, 'stop')).toBeUndefined();
+  });
+
+  it('in "stop" mode playback ends after the last step of the part it starts in', () => {
+    const tl = buildTimeline(sheet(8, parts2));
+    expect(stopStepFrom(tl, 0, 'stop')).toBe(3);
+    expect(stopStepFrom(tl, 2, 'stop')).toBe(3); // starting in the middle of a part
+    expect(stopStepFrom(tl, 4, 'stop')).toBeUndefined(); // the last part runs to the end
+  });
+
+  it('in "continue" mode only a part flagged to pause stops', () => {
+    const tl = buildTimeline(sheet(8, parts2));
+    expect(stopStepFrom(tl, 0, 'continue')).toBeUndefined();
+    const flagged = buildTimeline(sheet(8, { 0: { part: { name: 'A', pause: true } }, 4: { part: { name: 'B' } } }));
+    expect(stopStepFrom(flagged, 0, 'continue')).toBe(3);
+  });
+
+  it('a repeat inside a part does not end it, but the end of the repeated part does', () => {
+    // measures 0-3 are part A with bars 1-2 repeated; the played order is 0 1 0 1 2 3 | 4 ...
+    const tl = buildTimeline(sheet(8, { ...parts2, 1: { repeatEnd: 2 } }));
+    expect(tl.steps.map((s) => s.measure)).toEqual([0, 1, 0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(stopStepFrom(tl, 0, 'stop')).toBe(5); // after the second pass, not after the first bar 2
+  });
+
+  it('a jump back across parts ends the part it leaves (D.C.)', () => {
+    const tl = buildTimeline(sheet(8, { ...parts2, 7: { jump: 'dc' } }));
+    expect(tl.steps.map((s) => s.measure)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(stopStepFrom(tl, 0, 'stop')).toBe(3);
+    expect(stopStepFrom(tl, 4, 'stop')).toBe(7); // B ends where the jump takes it back into A
+    expect(stopStepFrom(tl, 8, 'stop')).toBe(11);
+  });
+
+  it('firstStepOf finds where a measure is first played', () => {
+    const tl = buildTimeline(sheet(8, { 1: { repeatEnd: 2 } }));
+    expect(firstStepOf(tl, 2)).toBe(4);
+    expect(firstStepOf(tl, 0)).toBe(0);
   });
 });
