@@ -11,6 +11,7 @@ describe('actionFor', () => {
     expect(actionFor(key('ArrowRight'), free)).toEqual({ type: 'select', delta: 1 });
     expect(actionFor(key('ArrowLeft'), free)).toEqual({ type: 'select', delta: -1 });
     expect(actionFor(key('m'), free)).toEqual({ type: 'merge' });
+    expect(actionFor(key('t'), free)).toEqual({ type: 'tidy' });
     expect(actionFor(key('M', { shiftKey: true }), free)).toEqual({ type: 'merge' }); // caps lock or shift does not matter
     expect(actionFor(key('d'), free)).toEqual({ type: 'mode', mode: 'draw' });
     expect(actionFor(key('s'), free)).toEqual({ type: 'mode', mode: 'split' });

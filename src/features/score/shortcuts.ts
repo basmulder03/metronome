@@ -6,6 +6,7 @@ export type Action =
   | { type: 'bar'; dx: number }
   | { type: 'mode'; mode: 'draw' | 'split' | 'select' }
   | { type: 'merge' }
+  | { type: 'tidy' }
   | { type: 'play' }
   | { type: 'escape' }
   | { type: 'undo' }
@@ -59,6 +60,7 @@ export function actionFor(k: KeyInfo, { typing, modal, onButton }: { typing: boo
     case 's': return { type: 'mode', mode: 'split' };
     case 'v': return { type: 'mode', mode: 'select' };
     case 'm': return { type: 'merge' };
+    case 't': return { type: 'tidy' };
     case 'F2': return { type: 'rename' };
     case ' ': return { type: 'play' };
     case 'Escape': return { type: 'escape' };
@@ -75,6 +77,7 @@ export const SHORTCUTS: { keys: string; does: string }[] = [
   { keys: 'Alt + Shift + arrows', does: 'Resize the selected box (right and bottom edges)' },
   { keys: ', and .', does: 'Move the barline after the selected measure left or right (hold Shift for bigger steps)' },
   { keys: 'M', does: 'Merge the selected measure with the next one' },
+  { keys: 'T', does: 'Tidy the selected measure\'s row: same top and height, bars connected' },
   { keys: 'D, S, V', does: 'Draw, Split or Select mode' },
   { keys: 'Space', does: 'Play from the selected measure, or stop' },
   { keys: 'Escape', does: 'Stop playing, or deselect' },

@@ -6,7 +6,7 @@
   import { type Part, partIndexOf, partsOf } from './features/structure/parts';
   import { barLabels, firstBar } from './features/structure/bars';
   import { detectMeasures } from './features/score/detect';
-  import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes } from './features/score/markup';
+  import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes, tidyRow } from './features/score/markup';
   import { actionFor, type Action } from './features/score/shortcuts';
   import ShortcutsDialog from './features/score/ShortcutsDialog.svelte';
   import { createHistory } from './shared/history';
@@ -50,6 +50,9 @@
   let zoom = $state(1);
   let mode = $state<'draw' | 'split' | 'select'>('draw');
   let subdivide = $state(false);
+  // new and dragged boxes line up with their neighbours; remembered between visits
+  let snap = $state((() => { try { return localStorage.getItem('metronome.snap') !== 'off'; } catch { return true; } })());
+  $effect(() => { try { localStorage.setItem('metronome.snap', snap ? 'on' : 'off'); } catch { /* not remembered */ } });
   let playing = $state(false);
   let busy = $state(false);
   let progress = $state(0);
@@ -304,6 +307,13 @@
         if (has) edits.checkpoint();
         if (has && !mergeMeasures(app.piece, i)) status = 'Nothing to merge with: the next measure has to be on the same page.';
         break;
+      case 'tidy':
+        if (has) {
+          edits.checkpoint();
+          const n = tidyRow(app.piece, i);
+          status = n ? `Tidied ${n} box${n === 1 ? '' : 'es'} in this row.` : 'This row is already tidy.';
+        }
+        break;
       case 'play': if (playing) player.stop(); else void playFromSelected(); break;
       case 'escape': if (playing) player.stop(); else app.selected = -1; break;
       case 'undo': case 'redo': {
@@ -431,6 +441,7 @@
     <summary>Options</summary>
     <div class="panel">
       <label class="check"><input type="checkbox" bind:checked={subdivide} /> Click on subdivisions</label>
+      <label class="check"><input type="checkbox" bind:checked={snap} /> Line boxes up with their neighbours (hold Alt to skip)</label>
       <label>Count-in
         <select bind:value={app.piece.countIn}>
           <option value={0}>None</option>
@@ -477,6 +488,7 @@
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onreplace={async (id, blob) => { if (id === lib.currentId) { doc = await load(blob); pageNum = 0; } }} />
 {#if current}
   <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
+    {#if app.selected >= 0}<Button size="sm" onclick={() => run({ type: 'tidy' })} title="Same top and height for the whole row, bars connected (T)">Tidy row</Button>{/if}
     <span class="saved" aria-live="polite">{savedText}</span>
     {#if parts.length}
       <label class="part">Part
@@ -500,7 +512,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
   <div class="score" role="region" aria-label="Score" tabindex="0">
     {#if doc || app.piece.measures.length === 0}
-      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} onstep={() => edits.checkpoint()} />
+      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} {snap} onstep={() => edits.checkpoint()} />
     {:else}
       <MeasureStrip />
     {/if}

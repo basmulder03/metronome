@@ -4,10 +4,11 @@
   import { app } from '../../shared/store.svelte';
   import { barLabels } from '../structure/bars';
   import { boxLabel, inRamp as rampOf } from './labels';
-  import { dragEdge, insertMeasures, moveBox, splitMeasure, type Edge } from './markup';
+  import { dragEdge, insertMeasures, moveBox, outlineRect, snapBox, splitMeasure, type Edge } from './markup';
 
   // `onstep` is called just before a gesture edits the boxes, so each drag, drawn box or split is its own undo step
-  let { doc, pageNum, zoom, mode, onstep = () => {} }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select'; onstep?: () => void } = $props();
+  // `snap`: new and dragged boxes line up with their neighbours (hold Alt to skip it for one gesture)
+  let { doc, pageNum, zoom, mode, onstep = () => {}, snap = true }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select'; onstep?: () => void; snap?: boolean } = $props();
 
   let canvas: HTMLCanvasElement;
   let renderedWidth = 0; // width the page was last drawn at (plain variable: reading it must not re-run the render)
@@ -101,8 +102,11 @@
     if (!start) return;
     const r = rectOf(start, norm(e));
     start = ghost = null;
-    if (r.w > 0.02 && r.h > 0.01) onstep();
-    if (r.w > 0.02 && r.h > 0.01) insertMeasure({ id: crypto.randomUUID(), page: pageNum, rect: r });
+    if (r.w > 0.02 && r.h > 0.01) {
+      onstep();
+      const others = app.piece.measures.filter((m) => m.page === pageNum).map((m) => m.rect);
+      insertMeasure({ id: crypto.randomUUID(), page: pageNum, rect: snap && !e.altKey ? outlineRect(r, others) : r });
+    }
   }
 
   // Dragging in Select mode: the body of a box moves it, the handles on a selected box move one edge. A barline shared with the
@@ -137,7 +141,10 @@
     drag.x = p.x;
     drag.y = p.y;
   }
-  const dragEnd = () => { drag = null; };
+  function dragEnd(e: PointerEvent) {
+    if (drag?.moved && snap && !e.altKey) snapBox(app.piece, drag.i); // settle onto the neighbours when the gesture ends
+    drag = null;
+  }
 
   function pick(e: MouseEvent, i: number) {
     if (mode === 'split') {
