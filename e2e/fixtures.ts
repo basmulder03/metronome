@@ -5,12 +5,14 @@ export const PB = 'http://127.0.0.1:8094'; // the test backend (see playwright.c
 
 export type TestUser = { email: string; password: string; token: string; record: unknown };
 
-/** Registers a fresh user on the test backend. */
+/** Creates a fresh user on the test backend the way an operator would (the public API no longer allows it). */
 export async function createUser(): Promise<TestUser> {
   const email = `u${Date.now()}${Math.random().toString(36).slice(2, 8)}@example.com`;
   const password = 'password123';
   const api = await request.newContext({ baseURL: PB });
-  await api.post('/api/collections/users/records', { data: { email, password, passwordConfirm: password } });
+  const su = await (await api.post('/api/collections/_superusers/auth-with-password', { data: { identity: 'test@example.com', password: 'test-password-123' } })).json();
+  const made = await api.post('/api/collections/users/records', { data: { email, password, passwordConfirm: password }, headers: { Authorization: su.token } });
+  if (!made.ok()) throw new Error(`could not create a test user: ${await made.text()}`);
   const r = await (await api.post('/api/collections/users/auth-with-password', { data: { identity: email, password } })).json();
   await api.dispose();
   return { email, password, token: r.token, record: r.record };

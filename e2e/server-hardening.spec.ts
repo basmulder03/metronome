@@ -1,28 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { startBackend, type Backend } from './backend';
 
-// Own backend on another port with the real migrations (rate limits on), separate from the relaxed test backend.
-const PORT = 8092;
-const BASE = `http://127.0.0.1:${PORT}`;
-let proc: ChildProcess;
-let dir: string;
-
-test.beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'pb-hardening-'));
-  proc = spawn('server/bin/pocketbase', ['serve', `--http=127.0.0.1:${PORT}`, `--dir=${dir}`, '--migrationsDir=server/pb_migrations']);
-  for (let i = 0; i < 50; i++) {
-    try { if ((await fetch(`${BASE}/api/health`)).ok) return; } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error('backend did not start');
-});
-test.afterAll(() => { proc?.kill(); rmSync(dir, { recursive: true, force: true }); });
+// Own backend with the real rate limits on (the shared test backend relaxes them).
+let pb: Backend;
+test.beforeAll(async () => { pb = await startBackend({ port: 8092, relaxLimits: false }); });
+test.afterAll(() => pb?.stop());
 test.beforeEach(({}, info) => test.skip(info.project.name !== 'desktop', 'server-only'));
 
-const post = (path: string, body: unknown) => fetch(`${BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const post = (path: string, body: unknown) => pb.call(path, { method: 'POST', body: JSON.stringify(body) });
 
 test('repeated wrong passwords get rate limited', async () => {
   const codes: number[] = [];
@@ -31,15 +16,21 @@ test('repeated wrong passwords get rate limited', async () => {
   expect(codes.slice(10)).toEqual([429, 429, 429]);
 });
 
-test('account creation is rate limited', async () => {
+test('registration attempts are rate limited, whatever their outcome', async () => {
   const codes: number[] = [];
-  for (let i = 0; i < 7; i++) codes.push((await post('/api/collections/users/records', { email: `spam${i}@example.com`, password: 'password123', passwordConfirm: 'password123' })).status);
-  expect(codes.filter((c) => c === 429).length).toBeGreaterThanOrEqual(1);
+  for (let i = 0; i < 7; i++) codes.push((await post('/api/metronome/register', { email: `spam${i}@example.com`, password: 'password123' })).status);
+  expect(codes.slice(0, 5).every((c) => c === 403)).toBe(true); // invitation only by default
+  expect(codes.slice(5)).toEqual([429, 429]);
+});
+
+test('invitation lookups are rate limited so tokens cannot be guessed quickly', async () => {
+  const codes: number[] = [];
+  for (let i = 0; i < 33; i++) codes.push((await pb.call(`/api/metronome/invite?token=guess${i}`)).status);
+  expect(codes.slice(0, 30).every((c) => c === 404)).toBe(true);
+  expect(codes.slice(30).every((c) => c === 429)).toBe(true);
 });
 
 test('nothing is readable without an account', async () => {
-  const res = await fetch(`${BASE}/api/collections/pieces/records`);
-  expect(res.status).toBeLessThan(500);
-  const anon = await res.json();
-  expect(anon.totalItems ?? 0).toBe(0); // owner-only rules: nothing is visible without an account
+  const anon = await (await pb.call('/api/collections/pieces/records')).json();
+  expect(anon.totalItems ?? 0).toBe(0); // owner-only rules
 });

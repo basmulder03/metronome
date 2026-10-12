@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from './fixtures';
+import { expect, test, PB, signInContext } from './fixtures';
+import { ADMIN } from './backend';
 import type { Page } from '@playwright/test';
 import { makePdf } from './make-pdf.mjs';
 
@@ -49,6 +50,34 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.getByRole('button', { name: 'Close' }).click();
       await page.getByRole('button', { name: 'Playlists' }).click();
       await audit(page, 'playlists');
+    });
+
+    test('admin panel (every tab, with an invitation QR open) and the invitation page', async ({ browser }) => {
+      const login = await (await fetch(`${PB}/api/collections/users/auth-with-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identity: ADMIN.email, password: ADMIN.password }) })).json();
+      const ctx = await browser.newContext({ colorScheme: scheme, viewport: { width: 1280, height: 900 } });
+      await signInContext(ctx, { email: ADMIN.email, password: ADMIN.password, token: login.token, record: login.record });
+      const page = await ctx.newPage();
+      await page.goto('/');
+      await page.getByRole('button', { name: 'Admin' }).click();
+      const panel = page.getByRole('dialog', { name: 'Administration' });
+      await panel.getByLabel('Name').fill('Axe');
+      await panel.getByRole('button', { name: 'Create invitation' }).click();
+      await expect(panel.getByRole('img', { name: /QR code/ }).locator('svg')).toBeVisible();
+      const link = await panel.getByLabel('Invitation link for Axe').inputValue();
+      await audit(page, 'admin: invitations');
+      await panel.getByRole('button', { name: 'Users' }).click();
+      await expect(panel.getByRole('listitem').first()).toBeVisible();
+      await audit(page, 'admin: users');
+      await panel.getByRole('button', { name: 'Settings' }).click();
+      await audit(page, 'admin: settings');
+      await ctx.close();
+
+      const g = await browser.newContext({ colorScheme: scheme });
+      const gp = await g.newPage();
+      await gp.goto(link.replace(/^https?:\/\/[^/]+/, `http://localhost:5175`));
+      await expect(gp.getByRole('heading', { name: 'Join Metronome' })).toBeVisible();
+      await audit(gp, 'invitation page');
+      await g.close();
     });
 
     test('measure grid without a PDF', async ({ page, browser }) => {
