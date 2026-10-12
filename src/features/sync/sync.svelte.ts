@@ -26,13 +26,14 @@ async function syncKind<T extends { id: string }>(
   drop: (id: string) => Promise<void>,
 ) {
   const col = pb.collection(kind);
-  const remote = await col.getFullList<Remote>({ batch: 200 });
+  // list only what reconcile needs; the (bigger) markup is fetched below for the records that must be pulled
+  const remote = await col.getFullList<Remote>({ batch: 200, fields: 'id,clientId,updatedAt,deleted' });
   const byClient = new Map(remote.map((r) => [r.clientId, r]));
   const local = await locals();
   const act = reconcile(local, remote.map((r) => ({ id: r.clientId, updated: r.updatedAt ?? 0, deleted: !!r.deleted })));
   const item = new Map(local.map((l) => [l.id, l]));
 
-  for (const id of act.pull) if (await pull(byClient.get(id)!)) hooks.applied(kind, id, 'pulled');
+  for (const id of act.pull) if (await pull(await col.getOne<Remote>(byClient.get(id)!.id))) hooks.applied(kind, id, 'pulled');
   // tell the app first: dropping clears the "open piece" it needs to recognise
   for (const id of act.dropLocal) { hooks.applied(kind, id, 'dropped'); await drop(id); }
 
