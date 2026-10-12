@@ -116,10 +116,13 @@ test('inspector is visible in the viewport after selecting a measure', async ({ 
   expect(h!.y + h!.height).toBeLessThan(vh);
 });
 
-test('markup persists across reload', async ({ page }) => {
+test('markup persists across reload, together with the PDF', async ({ page }) => {
   await openAndMark(page);
+  await page.waitForTimeout(400); // autosave debounce
   await page.reload();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('metronome.piece')!).measures.length)).toBe(4);
+  await expect(page.locator('.box')).toHaveCount(4);
+  await expect(page.getByText('1/1')).toBeVisible();
+  await expect(page.locator('canvas')).toBeVisible();
 });
 
 test('toolbar does not shift the score when a measure is selected', async ({ page }) => {
@@ -188,8 +191,9 @@ test('structure marks survive a reload', async ({ page }) => {
   await openAndMark(page);
   await page.locator('.box').nth(2).click();
   await page.getByLabel('Segno', { exact: true }).check();
+  await page.waitForTimeout(400);
   await page.reload();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('metronome.piece')!).measures[2].marks)).toEqual({ segno: true });
+  await expect(page.locator('.box').nth(2)).toContainText('segno');
 });
 
 test('count-in adds bars to playback and export', async ({ page }) => {
@@ -206,8 +210,8 @@ test('pickup shortens the first bar and a fermata stretches a beat', async ({ pa
   await openAndMark(page);
   await setTempo(page, '120');
   await page.locator('.box').nth(0).click();
-  await page.getByLabel('Pickup: beats present').fill('1');
-  await page.getByLabel('Pickup: beats present').blur();
+  await page.getByLabel('Beats in this measure (pickup)').fill('1');
+  await page.getByLabel('Beats in this measure (pickup)').blur();
   await expect(page.locator('.box').nth(0)).toContainText('pickup 1');
   expect(await wavSeconds(page)).toBeCloseTo(7, 1); // 0.5 s pickup + 3 bars x 2 s + 0.5 s tail
   await page.locator('.box').nth(3).click();
