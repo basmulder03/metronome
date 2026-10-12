@@ -16,6 +16,7 @@
   import { codeFromHash, decodeShare } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
   import { emptyPiece } from './shared/types';
+  import AdminPanel from './features/admin/AdminPanel.svelte';
   import PlaylistPanel from './features/playlist/PlaylistPanel.svelte';
   import { initPlaylists } from './features/playlist/playlist.svelte';
   import LibraryPanel from './features/library/LibraryPanel.svelte';
@@ -56,6 +57,7 @@
   onDestroy(() => stopSync());
   let libraryPanel: LibraryPanel;
   let playlistPanel: PlaylistPanel;
+  let adminPanel = $state<AdminPanel>();
   let saveTimer = 0;
   // Autosave: reading the whole piece makes this re-run on any markup edit; writes are debounced.
   $effect(() => {
@@ -255,6 +257,7 @@
   <label class="file">{entry(lib.currentId) && !entry(lib.currentId)?.hasPdf ? 'Attach PDF' : 'Open PDF'}<input type="file" accept="application/pdf" onchange={open} hidden /></label>
   <Button onclick={() => libraryPanel.show()}>Library</Button>
   <Button onclick={() => playlistPanel.show()}>Playlists</Button>
+  {#if auth.user?.role === 'admin'}<Button onclick={() => void adminPanel?.show()}>Admin</Button>{/if}
   <span class="grp">
     <Button disabled={pageNum === 0} onclick={() => pageNum--} aria-label="Previous page">‹</Button>
     <span>{pageNum + 1}/{pages}</span>
@@ -316,6 +319,7 @@
   {/if}
 </dialog>
 {#if found}{#key found}<ReadMarksDialog bind:this={readDialog} suggestions={found} onapply={addFound} oncancel={() => (found = null)} />{/key}{/if}
+{#if auth.user?.role === 'admin'}<AdminPanel bind:this={adminPanel} />{/if}
 <PlaylistPanel bind:this={playlistPanel} {subdivide} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} />
 {#if status}
