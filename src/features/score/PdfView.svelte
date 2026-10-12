@@ -2,6 +2,7 @@
   import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
   import type { Measure, Rect } from '../../shared/types';
   import { app } from '../../shared/store.svelte';
+  import { barLabels } from '../structure/bars';
   import { boxLabel, inRamp as rampOf } from './labels';
   import { dragEdge, insertMeasures, moveBox, splitMeasure, type Edge } from './markup';
 
@@ -146,6 +147,7 @@
   }
 
   const here = $derived(app.piece.measures.map((m, i) => ({ m, i })).filter(({ m }) => m.page === pageNum));
+  const bars = $derived(barLabels(app.piece.measures)); // printed bar numbers: a multi-measure rest skips ahead
   const label = (i: number) => boxLabel(app.piece, i);
   const inRamp = (i: number) => rampOf(app.piece, i);
 
@@ -173,7 +175,7 @@
     <button type="button" class="box" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(i)}
       style:--x={m.rect.x} style:--y={m.rect.y} style:--w={m.rect.w} style:--h={m.rect.h}
       onclick={(e) => pick(e, i)} onpointerdown={(e) => boxDown(e, i)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragEnd}>
-      <span class="n">{i + 1}</span><span class="tag">{label(i)}</span>
+      <span class="n">{bars[i]}</span><span class="tag">{label(i)}</span>
       {#if mode === 'select' && i === app.selected}
         {#each EDGES as edge}
           <!-- svelte-ignore a11y_no_static_element_interactions -- pointer-only handles; the keyboard has Alt+arrows and , . for the same job -->

@@ -42,6 +42,17 @@
   </section>
 
   <section>
+    <h4>Multi-measure rest</h4>
+    <p class="mut">A long rest printed as one box with a number over it stands for that many bars. Enter the number so the click runs for all of them; later boxes then carry the printed bar numbers.</p>
+    <div class="row">
+      <label>Bars in this rest
+        <input type="number" min="1" max="999" placeholder="1" value={k.multirest ?? ''}
+          onchange={(e) => setMark(m, 'multirest', +e.currentTarget.value >= 2 ? Math.min(999, Math.floor(+e.currentTarget.value)) : undefined)} />
+      </label>
+    </div>
+  </section>
+
+  <section>
     <h4>Length and holds</h4>
     <p class="mut">For an upbeat, mark the first bar as "only the last beats". A piece that began with one usually ends with a bar that is "only the first beats", which completes it.</p>
     <div class="row">
