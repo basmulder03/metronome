@@ -51,7 +51,10 @@
 </script>
 
 {#if i >= 0 && p.measures[i]}
-  <h3>Measure {i + 1}</h3>
+  <div class="head">
+    <h3>Measure {i + 1}</h3>
+    <Button size="sm" onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete box</Button>
+  </div>
   <p class="mut">In force: {meter.num}/{meter.den} ({meter.grouping.join('+')}) · {tempoAt(p, i)?.bpm ?? DEFAULT_BPM} bpm</p>
 
   <section>
@@ -108,14 +111,12 @@
     {/if}
   </section>
 
-  <section>
-    <Button onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete this measure box</Button>
-  </section>
 {:else}
   <p class="mut">Select a measure box to edit its time signature, tempo or accel/rall.</p>
 {/if}
 
 <style>
+  .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
   h3, h4 { margin: 0 0 4px; }
   h4 { font-size: 13px; color: var(--fg-muted); }
   section { border-top: 1px solid var(--border); padding: 12px 0; display: grid; gap: 8px; }

@@ -4,6 +4,7 @@
   import { Player, renderWav } from './features/playback/audio';
   import { detectMeasures } from './features/score/detect';
   import { insertMeasures, removeMeasure } from './features/score/markup';
+  import StructureEditor from './features/structure/StructureEditor.svelte';
   import Inspector from './features/tempo-map/Inspector.svelte';
   import PdfView from './features/score/PdfView.svelte';
   import { app, save, timeline } from './shared/store.svelte';
@@ -111,7 +112,7 @@
 {#if status}<p class="status" role="status">{status}</p>{/if}
 <main>
   <div class="score"><PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} /></div>
-  <Sheet><Inspector onplay={play} /></Sheet>
+  <Sheet><Inspector onplay={play} /><StructureEditor /></Sheet>
 </main>
 
 <style>
