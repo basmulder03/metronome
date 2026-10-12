@@ -1,6 +1,6 @@
 /** The test backend registers a user per test from one IP, so its rate limits are switched off here (production keeps them). */
 export default async function globalSetup() {
-  const base = 'http://127.0.0.1:8090';
+  const base = 'http://127.0.0.1:8094';
   const auth = await fetch(`${base}/api/collections/_superusers/auth-with-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

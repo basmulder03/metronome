@@ -2,8 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// the backend (PocketBase) listens on 8090; the app talks to it through same-origin /api
-const proxy = { '/api': 'http://127.0.0.1:8090' };
+// the backend (PocketBase) listens on 8090 by default; the app talks to it through same-origin /api.
+// PB_URL lets the browser tests point at their own throw-away backend.
+const proxy = { '/api': process.env.PB_URL ?? 'http://127.0.0.1:8090' };
 
 export default defineConfig({
   plugins: [

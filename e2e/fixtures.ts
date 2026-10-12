@@ -1,7 +1,7 @@
 import { expect, request, test as base } from '@playwright/test';
 
 export { expect };
-export const PB = 'http://127.0.0.1:8090';
+export const PB = 'http://127.0.0.1:8094'; // the test backend (see playwright.config.ts)
 
 export type TestUser = { email: string; password: string; token: string; record: unknown };
 
