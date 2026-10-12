@@ -59,9 +59,18 @@ describe('actionFor', () => {
 
   it('ignores other combinations and browser shortcuts', () => {
     expect(actionFor(key('d', { ctrlKey: true }), free)).toBeNull(); // Ctrl+D is the browser's
-    expect(actionFor(key('s', { ctrlKey: true }), free)).toBeNull();
     expect(actionFor(key('x'), free)).toBeNull();
     expect(actionFor(key('Tab'), free)).toBeNull();
+  });
+
+  it('Ctrl+S (or Cmd+S) saves, even in a text field or with a dialog open, and plain S is still Split mode', () => {
+    expect(actionFor(key('s', { ctrlKey: true }), free)).toEqual({ type: 'save' });
+    expect(actionFor(key('s', { metaKey: true }), free)).toEqual({ type: 'save' });
+    expect(actionFor(key('S', { ctrlKey: true, shiftKey: true }), free)).toEqual({ type: 'save' });
+    expect(actionFor(key('s', { ctrlKey: true }), { ...free, typing: true })).toEqual({ type: 'save' });
+    expect(actionFor(key('s', { ctrlKey: true }), { ...free, modal: true })).toEqual({ type: 'save' });
+    expect(actionFor(key('s'), free)).toEqual({ type: 'mode', mode: 'split' });
+    expect(actionFor(key('s', { ctrlKey: true, altKey: true }), free)).toBeNull();
   });
 
   it('every documented shortcut is really mapped', () => {

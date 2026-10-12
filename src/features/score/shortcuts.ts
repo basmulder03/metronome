@@ -10,6 +10,7 @@ export type Action =
   | { type: 'escape' }
   | { type: 'undo' }
   | { type: 'redo' }
+  | { type: 'save' }
   | { type: 'rename' }
   | { type: 'help' };
 
@@ -27,6 +28,8 @@ export function actionFor(k: KeyInfo, { typing, modal, onButton }: { typing: boo
   const mod = k.ctrlKey || k.metaKey;
   const key = k.key.length === 1 ? k.key.toLowerCase() : k.key;
 
+  // Ctrl/Cmd+S is the browser's "save page": here it saves the piece now, everywhere, even while typing in a field
+  if (mod && !k.altKey && key === 's') return { type: 'save' };
   if (typing) return null; // a text field keeps its own keys, including its own undo
   if (mod && !k.altKey) {
     if (key === 'z') return k.shiftKey ? { type: 'redo' } : { type: 'undo' };
@@ -42,6 +45,7 @@ export function actionFor(k: KeyInfo, { typing, modal, onButton }: { typing: boo
     if (d) return k.shiftKey ? { type: 'resize', dw: d[0], dh: d[1] } : { type: 'nudge', dx: d[0], dy: d[1] };
     return null;
   }
+  if (mod || k.altKey) return null; // any other Ctrl/Cmd/Alt combination belongs to the browser or the system
   switch (key) {
     case 'Delete':
     case 'Backspace': return { type: 'delete' };
@@ -75,6 +79,7 @@ export const SHORTCUTS: { keys: string; does: string }[] = [
   { keys: 'Space', does: 'Play from the selected measure, or stop' },
   { keys: 'Escape', does: 'Stop playing, or deselect' },
   { keys: 'Ctrl+Z, Ctrl+Shift+Z', does: 'Undo, redo' },
+  { keys: 'Ctrl+S', does: 'Save now (it is saved automatically as you work) and sync to your account' },
   { keys: 'F2', does: 'Rename this piece' },
   { keys: '?', does: 'Show this list' },
 ];

@@ -4,6 +4,7 @@
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn, firstStepOf, stopStepFrom } from './features/tempo-map/timeline';
   import { type Part, partIndexOf, partsOf } from './features/structure/parts';
+  import { barLabels, firstBar } from './features/structure/bars';
   import { detectMeasures } from './features/score/detect';
   import { dragEdge, looksLikePickup, mergeMeasures, moveBox, removeMeasure, replaceBoxes } from './features/score/markup';
   import { actionFor, type Action } from './features/score/shortcuts';
@@ -62,6 +63,9 @@
   let adminPanel = $state<AdminPanel>();
   let shortcutsDialog = $state<ShortcutsDialog>();
   let saveTimer = 0;
+  let saveState = $state<'saved' | 'saving'>('saved');
+  let savedFlash = $state(false); // a moment of "Saved" after Ctrl+S
+  let flashTimer = 0;
   // Undo and redo over the piece (named `edits`: `history` is the browser's own, used for the address bar below)
   const edits = createHistory(JSON.stringify(emptyPiece()));
   // Autosave: reading the whole piece makes this re-run on any markup edit; writes are debounced.
@@ -69,7 +73,17 @@
     edits.note(JSON.stringify(app.piece));
     if (!lib.currentId) return;
     clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => void saveCurrent(app.piece), 100);
+    saveState = 'saving';
+    saveTimer = window.setTimeout(() => void saveCurrent(app.piece).then(() => (saveState = 'saved')), 100);
+  });
+
+  // Best effort when the tab is hidden or closed: do not wait for the debounce.
+  $effect(() => {
+    const flush = () => { if (lib.currentId) void saveCurrent(app.piece); };
+    const hidden = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', hidden);
+    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', hidden); };
   });
 
   const load = async (blob: Blob) => openPdf(new Uint8Array(await blob.arrayBuffer()));
@@ -242,6 +256,28 @@
     if (t) await rename(current.id, t);
   }
 
+  /** Ctrl+S: write the piece to this device right now and push it to the account, instead of waiting for the autosave. */
+  async function saveNow() {
+    if (!lib.currentId) { status = 'Nothing to save yet: open a PDF first.'; return; }
+    clearTimeout(saveTimer);
+    saveState = 'saving';
+    await saveCurrent(app.piece);
+    saveState = 'saved';
+    savedFlash = true;
+    clearTimeout(flashTimer);
+    flashTimer = window.setTimeout(() => (savedFlash = false), 2500);
+    await syncNow();
+  }
+
+  const savedText = $derived(
+    saveState === 'saving' ? 'Saving…'
+    : savedFlash ? 'Saved'
+    : sync.status === 'offline' ? 'Saved on this device · will sync when online'
+    : sync.status === 'error' ? 'Saved on this device · sync failed'
+    : sync.last && sync.status === 'idle' ? 'Saved and synced'
+    : 'Saved on this device',
+  );
+
   /** Carry out a keyboard shortcut. Edits to the piece go through the same code as the mouse and buttons. */
   function run(a: Action) {
     const ms = app.piece.measures;
@@ -275,6 +311,7 @@
         if (json) { app.piece = JSON.parse(json); app.selected = Math.min(app.selected, app.piece.measures.length - 1); }
         break;
       }
+      case 'save': void saveNow(); break;
       case 'rename': void renameCurrent(); break;
       case 'help': shortcutsDialog?.show(); break;
     }
@@ -386,7 +423,7 @@
     {#if playing}
       <Button variant="primary" onclick={() => player.stop()}>Stop</Button>
     {:else}
-      <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${app.selected + 1}` : 'Play'}>Play</Button>
+      <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${firstBar(barLabels(app.piece.measures)[app.selected] ?? String(app.selected + 1))}` : 'Play'}>Play</Button>
     {/if}
     <Button disabled={busy} onclick={() => void exportWav()}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export WAV'}</Button>
   </span>
@@ -440,6 +477,7 @@
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onreplace={async (id, blob) => { if (id === lib.currentId) { doc = await load(blob); pageNum = 0; } }} />
 {#if current}
   <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
+    <span class="saved" aria-live="polite">{savedText}</span>
     {#if parts.length}
       <label class="part">Part
         <select aria-label="Go to part" value={selectedPart} onchange={(e) => goToPart(+e.currentTarget.value)}>
@@ -483,6 +521,7 @@
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
   .titlebar { display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); }
   .titlebar strong { overflow-wrap: anywhere; }
+  .saved { color: var(--fg-muted); font-size: var(--font-sm); }
   .titlebar .part { flex-direction: row; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--fg); font-size: var(--font-md); }
   .status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); max-width: min(420px, calc(100vw - 2 * var(--space-4))); }
