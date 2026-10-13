@@ -74,6 +74,10 @@
     <h3>{barHeading(bars[i])}</h3>
     <Button size="sm" onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete box</Button>
   </div>
+  <label class="through">Edit several: through measure
+    <input type="number" min={i + 2} max={p.measures.length} placeholder="Shift+click on a computer"
+      onchange={(e) => { const n = Math.floor(+e.currentTarget.value); if (n > i + 1 && n <= p.measures.length) app.extent = n - 1; e.currentTarget.value = ''; }} />
+  </label>
   <p class="mut">In force: {meter.num}/{meter.den} ({meter.grouping.join('+')}) · {tempoAt(p, i)?.bpm ?? DEFAULT_BPM} bpm</p>
 
   <details class="sec" open>

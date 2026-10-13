@@ -72,6 +72,7 @@ export function actionFor(k: KeyInfo, { typing, modal, onButton }: { typing: boo
 /** Every shortcut, for the help dialog. */
 export const SHORTCUTS: { keys: string; does: string }[] = [
   { keys: '← →', does: 'Select the previous or next measure' },
+  { keys: 'Shift + click', does: 'Select a run of measures to edit them all at once' },
   { keys: 'Delete or Backspace', does: 'Delete the selected measure box' },
   { keys: 'Alt + arrows', does: 'Move the selected box' },
   { keys: 'Alt + Shift + arrows', does: 'Resize the selected box (right and bottom edges)' },

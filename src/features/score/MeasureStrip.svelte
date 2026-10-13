@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app } from '../../shared/store.svelte';
+  import { app, choose } from '../../shared/store.svelte';
   import { barLabels, barsIn, firstBar } from '../structure/bars';
   import { boxLabel, inRamp } from './labels';
   import MarkGlyphs from './MarkGlyphs.svelte';
@@ -17,7 +17,7 @@
 
 <div class="strip" role="group" aria-label="Measures">
   {#each tiles as { i, k, id, bar } (id)}
-    <button type="button" class="tile" aria-pressed={i === app.selected} aria-label="Measure {bar}" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(app.piece, i)} onclick={() => (app.selected = i)}>
+    <button type="button" class="tile" aria-pressed={i === app.selected} aria-label="Measure {bar}" class:sel={i === app.selected} class:range={i > app.selected && i <= app.extent} class:playing={i === app.playing} class:ramp={inRamp(app.piece, i)} onclick={(e) => choose(i, e.shiftKey)}>
       {#if k === 0}<MarkGlyphs marks={app.piece.measures[i].marks} />{/if}
       <span class="n">{bar}</span>
       <span class="tag">{k === 0 ? boxLabel(app.piece, i, false) : ''}</span>
@@ -31,6 +31,7 @@
   .n { font-weight: 700; }
   .tag { font-size: var(--font-sm); color: var(--fg-muted); overflow-wrap: anywhere; }
   .ramp { border-color: var(--warn); }
+  .range { outline: 2px dashed var(--accent); }
   .sel { outline: 2px solid var(--accent); }
   .playing { background: var(--accent); color: var(--accent-fg); }
   .playing .tag { color: inherit; }

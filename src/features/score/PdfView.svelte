@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
   import type { Measure, Rect } from '../../shared/types';
-  import { app } from '../../shared/store.svelte';
+  import { app, choose } from '../../shared/store.svelte';
   import { barLabels } from '../structure/bars';
   import { boxLabel, inRamp as rampOf } from './labels';
   import MarkGlyphs from './MarkGlyphs.svelte';
@@ -151,7 +151,7 @@
     if (mode === 'split') {
       onstep();
       if (splitMeasure(app.piece, i, norm(e).x, crypto.randomUUID())) app.selected = i;
-    } else app.selected = i;
+    } else choose(i, e.shiftKey);
   }
 
   const here = $derived(app.piece.measures.map((m, i) => ({ m, i })).filter(({ m }) => m.page === pageNum));
@@ -180,7 +180,7 @@
   class:drawing={mode === 'draw'} onpointerdown={down} onpointermove={move} onpointerup={up}>
   <canvas bind:this={canvas}></canvas>
   {#each here as { m, i } (m.id)}
-    <button type="button" class="box" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(i)}
+    <button type="button" class="box" class:sel={i === app.selected} class:range={i > app.selected && i <= app.extent} class:playing={i === app.playing} class:ramp={inRamp(i)}
       style:--x={m.rect.x} style:--y={m.rect.y} style:--w={m.rect.w} style:--h={m.rect.h}
       onclick={(e) => pick(e, i)} onpointerdown={(e) => boxDown(e, i)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragEnd}>
       <MarkGlyphs marks={m.marks} paper />
@@ -204,6 +204,7 @@
   .box { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--w) * 100%); height: calc(var(--h) * 100%); padding: 0; min-height: 0; border: 1px solid color-mix(in srgb, var(--on-paper-accent) 50%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--on-paper-accent) 6%, transparent); text-align: left; transition: background 0.12s; }
   .page.drawing .box { pointer-events: none; }
   .box.ramp { background: color-mix(in srgb, var(--on-paper-ramp) 12%, transparent); border-color: color-mix(in srgb, var(--on-paper-ramp) 60%, transparent); }
+  .box.range { outline: 2px dashed var(--on-paper-accent); background: color-mix(in srgb, var(--on-paper-accent) 14%, transparent); }
   .box.sel { outline: 2px solid var(--on-paper-accent); touch-action: none; cursor: move; }
   .handle { position: absolute; background: var(--on-paper-accent); opacity: 0.55; touch-action: none; }
   .handle:hover { opacity: 1; }

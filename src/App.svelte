@@ -21,7 +21,8 @@
   import PdfView from './features/score/PdfView.svelte';
   import { hasShareHash, openShare } from './features/share/link';
   import type { Shared } from './features/share/codec';
-  import { app, timeline } from './shared/store.svelte';
+  import { app, selectedRange, timeline } from './shared/store.svelte';
+  import BulkEditor from './features/score/BulkEditor.svelte';
   import { emptyPiece } from './shared/types';
   import AdminPanel from './features/admin/AdminPanel.svelte';
   import PlaylistPanel from './features/playlist/PlaylistPanel.svelte';
@@ -294,12 +295,14 @@
 
   /** Carry out a keyboard shortcut. Edits to the piece go through the same code as the mouse and buttons. */
   function run(a: Action) {
+    if (a.type === 'select' || a.type === 'escape' || a.type === 'merge') app.extent = -1;
     const ms = app.piece.measures;
     const i = app.selected;
     const has = i >= 0 && i < ms.length;
     switch (a.type) {
       case 'delete':
         if (!has) return;
+        if (selectedRange()) return; // a run is deleted from its panel, which asks first
         edits.checkpoint();
         removeMeasure(app.piece, i);
         app.selected = Math.min(i, ms.length - 1); // the next box takes its place
@@ -529,7 +532,11 @@
       <MeasureStrip />
     {/if}
   </div>
-  <Sheet hidden={!!doc && !preview && mode !== 'select'}><Inspector onplay={play} onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} /><StructureEditor /></Sheet>
+  <Sheet hidden={!!doc && !preview && mode !== 'select'}>{#if selectedRange()}
+      <BulkEditor onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} />
+    {:else}
+      <Inspector onplay={play} onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} /><StructureEditor />
+    {/if}</Sheet>
 </main>
 </div>
 

@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures';
+import { readFileSync } from 'node:fs';
 import { makePdf } from './make-pdf.mjs';
 
 test.beforeAll(() => makePdf('e2e/score.pdf'));
@@ -52,4 +53,30 @@ test('rename and delete from the library', async ({ page }) => {
   page.once('dialog', (d) => { expect(d.message()).toContain('from all your devices'); void d.accept(); }); // sync makes deleting global
   await dlg.getByRole('button', { name: 'Delete' }).click();
   await expect(dlg).toContainText('Nothing saved yet');
+});
+
+test('several pieces can be added to a playlist or deleted together', async ({ page }) => {
+  await page.goto('/');
+  for (const name of ['one', 'two', 'three']) {
+    const before = (await page.locator('main').getAttribute('data-piece')) ?? '';
+    await page.locator('header input[type=file]').setInputFiles({ name: `${name}.pdf`, mimeType: 'application/pdf', buffer: readFileSync('e2e/score.pdf') });
+    await expect(page.locator('main')).not.toHaveAttribute('data-piece', before);
+  }
+  await page.getByRole('button', { name: 'Playlists' }).click();
+  const pls = page.getByRole('dialog', { name: 'Playlists' });
+  page.once('dialog', (d) => void d.accept('Batch'));
+  await pls.getByRole('button', { name: 'New playlist' }).click();
+  await pls.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'Library' }).click();
+  const lib = page.getByRole('dialog', { name: 'Library' });
+  await lib.getByLabel('Select one', { exact: true }).check();
+  await lib.getByLabel('Select two', { exact: true }).check();
+  await lib.getByLabel('Add selected to playlist').selectOption({ label: 'Batch' });
+  await expect(lib).toContainText('Added 2 pieces to “Batch”');
+  await lib.getByLabel('Select three', { exact: true }).check();
+  page.once('dialog', (d) => void d.accept());
+  await lib.getByRole('button', { name: 'Delete selected' }).click();
+  await expect(lib.getByRole('listitem')).toHaveCount(2);
+  await expect(lib).not.toContainText('three');
 });
