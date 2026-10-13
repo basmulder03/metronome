@@ -144,7 +144,7 @@ export function buildTimeline(p: Piece): Timeline {
   let time = 0;
   for (const [s, m] of unroll(p.measures).entries()) {
     steps.push({ measure: m, time });
-    const { num, den } = meters[m];
+    const { den } = meters[m];
     const step = 4 / den;
     const accents = accentsOf(meters[m]);
     const [first, last] = spans[m]; // a pickup sounds only the last beats of the meter, a short bar only the first

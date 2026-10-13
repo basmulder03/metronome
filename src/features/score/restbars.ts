@@ -69,8 +69,6 @@ export function restBar(b: Bitmap, rect: Rect): { x0: number; x1: number; staffT
   return cells > 0 && other / cells < 0.04 ? { x0: bx0, x1: bx1, staffTop: top, sp } : null;
 }
 
-export const hasRestBar = (b: Bitmap, rect: Rect) => restBar(b, rect) !== null;
-
 /**
  * Is this box all but empty (a whole-bar rest, or nothing at all)? Such a box is narrow for a good reason, so a narrow one
  * that is quiet is not a false split. Staff lines and their soft edges do not count as ink.

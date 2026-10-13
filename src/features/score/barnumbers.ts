@@ -1,7 +1,7 @@
 import type { Measure } from '../../shared/types';
 import { barsIn } from '../structure/bars';
 import { partsOf } from '../structure/parts';
-import type { Suggestion, TextItem } from './readmarks';
+import type { Suggestion } from './readmarks';
 
 /** A bar number printed above a measure box (a rehearsal mark such as [24]), read from the page. */
 export type Printed = { measure: number; n: number };
@@ -62,27 +62,6 @@ export function solveRests(measureCount: number, rests: RestBox[], anchors: Prin
   }
   return { counts, conflicts, certain };
 }
-
-const isBoxed = (it: TextItem) => /^\d{1,3}$/.test(it.str.trim());
-
-/**
- * Split the whole numbers printed above the systems into rehearsal marks (at the left edge of a box) and rest counts (centred over
- * a box). `boxOf` says which box an item sits above, with the item's position inside it as a fraction of the box width.
- */
-export function numbersAbove(items: TextItem[], boxOf: (it: TextItem) => { measure: number; at: number } | undefined) {
-  const marks: Printed[] = [];
-  const centred: { measure: number; n: number }[] = [];
-  for (const it of items) {
-    if (!isBoxed(it)) continue;
-    const hit = boxOf(it);
-    if (!hit) continue;
-    (hit.at < 0.25 ? marks : centred).push({ measure: hit.measure, n: +it.str.trim() });
-  }
-  return { marks, centred };
-}
-
-/** Which boxes carry a printed number, for a quick "is this bar where the score says" display. */
-export const barNumberAt = (measures: Measure[], measure: number, labels: string[]) => labels[measure] ?? String(measure + 1);
 
 /** One measure box as the planner sees it: where it is, how many bars it stands for, and the row it sits in. */
 export type PlanBox = { x: number; y: number; w: number; bars: number };

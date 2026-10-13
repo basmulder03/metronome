@@ -14,8 +14,8 @@ test('a practice loop repeats a few measures with a rest in between until stoppe
   await page.getByLabel('BPM').first().fill('400'); // 0.6 s a bar
 
   await page.locator('.box').nth(1).click();
-  await page.getByLabel('Last measure').last().fill('3');
-  await page.getByLabel('Last measure').last().blur();
+  await page.getByLabel('Loop through measure').fill('3');
+  await page.getByLabel('Loop through measure').blur();
   await page.getByLabel('Rest between (s)').fill('1.5');
   await page.getByRole('button', { name: 'Practise 2–3' }).click();
 

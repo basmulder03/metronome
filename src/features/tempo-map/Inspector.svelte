@@ -143,7 +143,7 @@
     <summary>Practice</summary>
     <p class="mut">Repeats these measures until you press Stop, with a short rest in between.</p>
     <div class="row">
-      <label>Last measure<input type="number" min={i + 1} max={p.measures.length} value={practiceTo + 1}
+      <label>Loop through measure<input type="number" min={i + 1} max={p.measures.length} value={practiceTo + 1}
         onchange={(e) => { practiceTo = Math.min(p.measures.length - 1, Math.max(i, Math.floor(+e.currentTarget.value) - 1)); e.currentTarget.value = String(practiceTo + 1); }} /></label>
       <label>Rest between (s)<input type="number" min="0" max="30" step="0.5" bind:value={rest} /></label>
     </div>

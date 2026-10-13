@@ -31,7 +31,7 @@ PocketBase is a single Go binary with SQLite: it runs comfortably on a Raspberry
 proxy with HTTPS in front of it (the service worker and installability need HTTPS outside localhost). Data lives in
 `server/pb_data`; back that folder up.
 
-Hardening that ships with the migrations: owner-only access rules, login/registration rate limits, and a schema with
+Hardening that ships with the migrations: owner-only access rules, login/registration/share rate limits, and a schema with
 no file field at all, so a score cannot be uploaded even by a hand-made request.
 
 ### Deploying
@@ -83,11 +83,30 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   stops, the next part is selected, so Space continues with a fresh count-in. Use the part picker next to the title to jump to
   a part, and *Export this part* to get one part as its own audio file. Repeats inside a part do not end it.
 - **Share view:** *See share view* in the title bar shows the piece the way a share link opens it, without your PDF. A
-  multi-measure rest is then written out bar by bar, because another player's part has other rests.
+  multi-measure rest is then written out as plain numbered bars (not labelled as rests), because another player's part has other rests.
+- **Repeats and jumps are drawn like in print** on the boxes and the plain tiles: the repeat barline with its dots (and ×N for
+  more than two plays), a bracket with "1." / "2." over the ending, and badges for Segno, Coda, To Coda, Fine and D.C./D.S.
+- **Practice loop:** select a measure, open *Practice* in its settings, choose the last measure and a rest in seconds, and
+  press *Practise*. The range repeats, with the rest in between, until you press Stop (or Space). Repeats inside the range are
+  played as written.
+- **Bulk editing:** Shift+click a second measure (or type *Edit several: through measure*, for touch screens) to select a run.
+  The panel then sets the time signature or tempo for the whole run (the music after it keeps what it had), puts an ending
+  over it, clears its repeats and jumps, deletes the boxes, or starts a practice loop on it. In the Library, tick several
+  pieces to delete them or add them to a playlist.
+- **The tab icon beats** in time with the click while playing, with a bigger swell on the first beat of each bar.
 - **Moving a library:** in the Library, *Export all* saves the markup of every piece as one file (never a PDF) and *Import file*
   adds the pieces from such a file. That is how markup made on a test server is moved to the real one.
 - **Saving:** everything is saved automatically as you work (the title bar shows the state). Ctrl+S saves right now and syncs
   to your account, instead of the browser's *Save page* dialog.
+
+### Sharing
+
+*Share* in the Library (one piece) or in Playlists (a playlist with the markup of all its pieces) gives a short link like
+`https://host/#s=k3m9x2ab`. The markup is stored on the server under that code, so the link stays short however long the piece
+is; sharing the same thing again gives the same link. Anyone with the link can read the markup (and nothing else: no PDF ever
+reaches the server), so treat a code like a key. Opening a piece link signed out gives a read-only player (attach your own PDF);
+signing in offers to import it, and a playlist link imports the playlist and its pieces. Creating a link needs an account.
+Old long `#share=` links still open, and if the server cannot be reached, sharing falls back to such a link.
 
 ### Accounts and administration
 
@@ -151,10 +170,10 @@ Vertical slices under `src/features`, shared pieces under `src/shared`:
 | `score` | PDF page view, measure boxes (draw / split / merge / drag), keyboard shortcuts, barline auto-detection, reading marks from the PDF (text layer or OCR), measure grid |
 | `tempo-map` | Timeline engine (meters, tempos, bezier ramps, pickups, fermatas, count-in), inspector, curve editor, tap tempo |
 | `structure` | Repeats, endings, D.C./D.S. and how they unroll into a playing order |
-| `playback` | Click scheduling on the audio clock, offline WAV rendering |
+| `playback` | Click scheduling on the audio clock (loops with a rest, beat callback), offline WAV rendering, the beating tab icon |
 | `library` | Pieces and their PDFs, stored on the device (IndexedDB, one database per account) |
 | `playlist` | Ordered pieces, sequential playback, one-file export |
-| `share` | Link codec and validation (untrusted input), read-only guest view |
+| `share` | Link codec (pieces and playlists) and validation (untrusted input), short-link client, read-only guest view |
 | `auth`, `admin`, `sync` | Sign-in and invitations, the admin panel (invitations with QR, users, registration mode), last-write-wins sync of markup between devices |
 
 Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dark()`, a test that rejects raw colours).
@@ -171,6 +190,8 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
   guess, and it cannot read music-font time signatures). Everything is a suggestion you review first, and the end tempo of a rit./accel. is always a guess.
   Barline detection is classical image processing and will miss on dense, skewed or handwritten scores.
 - **Repeat signs, voltas and fermatas are not read from the page**; mark them in the editor.
+- **Share links cannot be withdrawn yet.** A code stays valid (it is deleted with its owner's account), at most 200 per account.
+  A practice loop is not saved with the piece.
 - **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.
 - **Sync pulls everything each time**, which is fine for a personal library, not for thousands of pieces.
 - **Count-in** uses the first measure's meter and tempo; fermatas apply on every pass of a repeat.
