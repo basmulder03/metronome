@@ -132,7 +132,10 @@ export class Player {
 
   /** Play measures from..to (inclusive), optionally looping; resolves true once started. Must be called from a user gesture. */
   /** `pre` is an optional count-in (beats with negative times relative to the first played beat), sounded once. */
-  async play(tl: Timeline, from: number, to: number, loop: boolean, opts: ClickOpts, pre: Beat[] = [], endStep?: number): Promise<boolean> {
+  /** `options` may be a function: it is asked again for every beat, so changes to the sound (volume, pattern, sound, silent bars) are heard at once. */
+  async play(tl: Timeline, from: number, to: number, loop: boolean, options: ClickOpts | (() => ClickOpts), pre: Beat[] = [], endStep?: number): Promise<boolean> {
+    const current = typeof options === 'function' ? options : () => options;
+    const opts = current();
     this.stop(false);
     this.ctx ??= new AudioContext();
     await this.ctx.resume();
@@ -157,8 +160,9 @@ export class Player {
         const when = origin + lap * lapLength + (tl.beats[i].time - t0);
         if (when > ctx.currentTime + 0.2) return;
         const accent = tl.beats[i].accent;
-        const level = levelOf(accent, opts);
-        if (level !== null && !silentBar(tl.beats[i].step - step0, lap, opts.silent)) click(ctx, when, level, opts);
+        const now = current();
+        const level = levelOf(accent, now);
+        if (level !== null && !silentBar(tl.beats[i].step - step0, lap, now.silent)) click(ctx, when, level, now);
         const id = window.setTimeout(() => { this.beatTimers.delete(id); this.onBeat(accent); }, Math.max(0, (when - ctx.currentTime) * 1000));
         this.beatTimers.add(id);
         if (++i >= iEnd) {

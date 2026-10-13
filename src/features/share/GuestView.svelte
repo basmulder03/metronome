@@ -49,7 +49,7 @@
     const tl = timeline();
     const from = Math.max(app.selected, 0);
     const pre = countIn(app.piece, tl, tl.beats.findIndex((b) => b.measure === from), app.piece.countIn ?? 0);
-    playing = await player.play(tl, from, last, false, clickOpts(), pre);
+    playing = await player.play(tl, from, last, false, () => clickOpts(), pre);
   }
 
   async function exportWav() {

@@ -49,7 +49,7 @@
       const { tl, pre, last, title } = plan(r);
       player.onMeasure = (m) => (now = { index, title, measure: m, total: last, gap: false });
       now = { index, title, measure: 0, total: last, gap: false };
-      if (!(await player.play(tl, 0, last, false, clickOpts(), pre))) continue;
+      if (!(await player.play(tl, 0, last, false, () => clickOpts(), pre))) continue;
       if (!(await player.whenDone) || cancelled) break;
       if (index < playable.length - 1) {
         now = { index, title: `Next: ${plan(playable[index + 1]).title}`, measure: 0, total: 0, gap: true };

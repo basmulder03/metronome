@@ -4,7 +4,7 @@
   import { pulseIcon, resetIcon } from './features/playback/favicon';
   import PlayBar from './features/playback/PlayBar.svelte';
   import { midiFile } from './features/playback/midi';
-  import { beatSignal, clickOpts } from './features/playback/sound.svelte';
+  import { beatSignal, clickOpts, sound } from './features/playback/sound.svelte';
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn, firstStepOf, stopStepFrom } from './features/tempo-map/timeline';
   import { type Part, partIndexOf, partsOf } from './features/structure/parts';
@@ -37,7 +37,7 @@
   import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, rename, saveCurrent, useUser } from './features/library/library.svelte';
   import { auth, signOut } from './features/auth/auth.svelte';
   import { hooks, startSync, sync, syncNow } from './features/sync/sync.svelte';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { useDatabase, wipeDatabase } from './shared/idb';
   import Button from './shared/ui/Button.svelte';
   import Segmented from './shared/ui/Segmented.svelte';
@@ -171,6 +171,19 @@
 
   const player = new Player();
   let position = $state(0); // where the playback bar shows the click: measure + how far through it
+  // a new speed needs a new timeline: playing carries on from where it is (volume, pattern and sound change on the next beat by themselves)
+  let lastSpeed = sound.speed;
+  let speedTimer = 0;
+  $effect(() => {
+    const speed = sound.speed;
+    if (speed === lastSpeed) return;
+    lastSpeed = speed;
+    untrack(() => {
+      if (!playing || practising) return;
+      clearTimeout(speedTimer);
+      speedTimer = window.setTimeout(() => { if (playing && !practising) void playFromSelected(Math.floor(position)); }, 250);
+    });
+  });
   player.onBeat = (a) => { pulseIcon(a); beatSignal(a); };
   player.onMeasure = (m) => {
     app.playing = m;
@@ -202,7 +215,7 @@
     if (!app.piece.measures.length) return;
     const tl = timeline();
     const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to, endStep)[0], app.piece.countIn ?? 0);
-    playing = await player.play(tl, from, to, loop, clickOpts({ gap }), pre, endStep);
+    playing = await player.play(tl, from, to, loop, () => clickOpts({ gap }), pre, endStep);
     if (playing && endStep !== undefined) void announceStop(tl, endStep);
   }
 
@@ -218,7 +231,7 @@
     for (let pct = trainer.from; run === practiceRun; pct = Math.min(trainer.to, pct + trainer.step)) {
       status = `Practising at ${pct}%${pct < trainer.to ? ` (up to ${trainer.to}%)` : ''}`;
       const tl = timeline(pct);
-      playing = await player.play(tl, from, to, false, clickOpts(), [], undefined);
+      playing = await player.play(tl, from, to, false, () => clickOpts(), [], undefined);
       if (!playing || !(await player.whenDone) || run !== practiceRun) break;
       await new Promise((r) => setTimeout(r, gap * 1000)); // the rest
     }
@@ -247,9 +260,9 @@
   }
 
   /** Play from the selected measure to the end, or to the end of its part when the sheet is set to stop after each part (or the part is flagged). */
-  function playFromSelected() {
+  function playFromSelected(startAt = Math.max(app.selected, 0)) {
     const tl = timeline();
-    const from = Math.max(app.selected, 0);
+    const from = startAt;
     const end = stopStepFrom(tl, firstStepOf(tl, from), app.piece.afterPart ?? 'continue');
     return play(from, app.piece.measures.length - 1, false, end);
   }
