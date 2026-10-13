@@ -9,7 +9,7 @@ export function setMark<K extends keyof Marks>(m: Measure, key: K, value: Marks[
 }
 
 /** Short text shown on the score overlay. */
-export function marksLabel(k?: Marks): string {
+export function marksLabel(k?: Marks, rests = true): string {
   if (!k) return '';
   const out: string[] = [];
   if (k.part) out.push(`[${k.part.name || 'part'}${k.part.pause ? ' ⏸' : ''}]`);
@@ -21,7 +21,7 @@ export function marksLabel(k?: Marks): string {
   if (k.toCoda) out.push('to coda');
   if (k.fine) out.push('fine');
   if (k.jump) out.push(k.jump === 'dc' ? 'D.C.' : 'D.S.');
-  if (k.multirest) out.push(`rest ×${k.multirest}`);
+  if (k.multirest && rests) out.push(`rest ×${k.multirest}`);
   if (k.pickup) out.push(`pickup ${k.pickup}`);
   if (k.partial) out.push(`short ${k.partial}`);
   if (k.fermata) out.push('fermata');

@@ -4,6 +4,7 @@
   import { app } from '../../shared/store.svelte';
   import { barLabels } from '../structure/bars';
   import { boxLabel, inRamp as rampOf } from './labels';
+  import MarkGlyphs from './MarkGlyphs.svelte';
   import { dragEdge, insertMeasures, moveBox, outlineRect, snapBox, splitMeasure, type Edge } from './markup';
 
   // `onstep` is called just before a gesture edits the boxes, so each drag, drawn box or split is its own undo step
@@ -182,6 +183,7 @@
     <button type="button" class="box" class:sel={i === app.selected} class:playing={i === app.playing} class:ramp={inRamp(i)}
       style:--x={m.rect.x} style:--y={m.rect.y} style:--w={m.rect.w} style:--h={m.rect.h}
       onclick={(e) => pick(e, i)} onpointerdown={(e) => boxDown(e, i)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragEnd}>
+      <MarkGlyphs marks={m.marks} paper />
       <span class="n">{bars[i]}</span><span class="tag">{label(i)}</span>
       {#if mode === 'select' && i === app.selected}
         {#each EDGES as edge}
