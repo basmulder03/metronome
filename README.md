@@ -83,9 +83,12 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   stops, the next part is selected, so Space continues with a fresh count-in. Use the part picker next to the title to jump to
   a part, and *Export this part* to get one part as its own audio file. Repeats inside a part do not end it.
 - **Share view:** *See share view* in the title bar shows the piece the way a share link opens it, without your PDF. A
-  multi-measure rest is then written out as plain numbered bars (not labelled as rests), because another player's part has other rests.
-- **Repeats and jumps are drawn like in print** on the boxes and the plain tiles: the repeat barline with its dots (and ×N for
-  more than two plays), a bracket with "1." / "2." over the ending, and badges for Segno, Coda, To Coda, Fine and D.C./D.S.
+  multi-measure rest is then just one tile like any other bar (not spelled out or labelled), because another player's part has other rests.
+  Each part starts on a new row with its name above it.
+- **Repeats and jumps are drawn on the boxes and the plain tiles:** the repeat barline with its dots, one continuous line over a
+  whole repeated section (with ×N for more than two plays) and a bracket over each ending ("1.", "2."), each block in its own
+  colour and labelled once. Jumps are badges that say where they go: "D.S. ↩ Segno · bar 3", "To Coda → bar 12", "D.C. ↩ bar 1",
+  "Fine ■"; a jump with no segno or coda to go to is shown in red.
 - **Practice loop:** select a measure, open *Practice* in its settings, choose the last measure and a rest in seconds, and
   press *Practise*. The range repeats, with the rest in between, until you press Stop (or Space). Repeats inside the range are
   played as written.

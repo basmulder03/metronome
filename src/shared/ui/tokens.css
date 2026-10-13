@@ -15,6 +15,10 @@
   --danger: light-dark(#c92a2a, #ff8787);
   --warn: light-dark(#e8590c, #ffa94d);
   --mark: light-dark(#862e9c, #da77f2);
+  --mark-0: light-dark(#862e9c, #da77f2);
+  --mark-1: light-dark(#0b7285, #3bc9db);
+  --mark-2: light-dark(#9c5a1a, #e8a15a);
+  --mark-3: light-dark(#5c7a00, #a9e34b);
   --warn-text: light-dark(#a8420a, #ffa94d); /* small text needs more contrast than the border colour */
   --qr-dark: #000000; /* a QR code must stay black on white in either theme to scan reliably */
   --qr-light: #ffffff;
@@ -28,6 +32,10 @@
   --on-paper-ramp: #e8590c;
   --on-paper-play: #2f9e44;
   --on-paper-mark: #862e9c; /* repeats, endings and jumps */
+  --on-paper-mark-0: #862e9c;
+  --on-paper-mark-1: #0b7285;
+  --on-paper-mark-2: #9c5a1a;
+  --on-paper-mark-3: #5c7a00;
 
   --space-1: 4px;
   --space-2: 8px;

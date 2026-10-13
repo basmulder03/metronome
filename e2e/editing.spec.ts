@@ -269,7 +269,7 @@ test.describe('multi-measure rests', () => {
     expect(await exportSeconds(page)).toBeCloseTo(8 * 2 + 0.5, 1);
   });
 
-  test('the grid view for a piece without a PDF uses the printed numbers too', async ({ page, browser, user }) => {
+  test('the grid view for a piece without a PDF shows a rest as one plain tile, numbered like the printed bars', async ({ page, browser, user }) => {
     void page; void browser; void user;
     await detected(page);
     await page.locator('.box').nth(1).click();
@@ -280,8 +280,9 @@ test.describe('multi-measure rests', () => {
     const lib = page.getByRole('dialog', { name: 'Library' });
     await lib.getByRole('button', { name: 'Duplicate' }).click(); // a copy has no PDF, so it shows the grid
     await lib.getByRole('listitem').filter({ hasText: '(copy)' }).getByRole('button', { name: 'Open' }).click();
-    for (const n of [2, 3, 4]) await expect(page.getByRole('button', { name: `Measure ${n}` })).toBeVisible(); // a rest is written out bar by bar without the PDF
-    await expect(page.getByRole('button', { name: 'Measure 5' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Measure \d/ })).toHaveCount(8); // one tile per box: the rest is not spelled out
+    await expect(page.getByRole('button', { name: 'Measure 2', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Measure 5', exact: true })).toBeVisible(); // the bar after the 3-bar rest skips ahead, like the print
   });
 });
 

@@ -5,6 +5,8 @@
   import { barLabels } from '../structure/bars';
   import { boxLabel, inRamp as rampOf } from './labels';
   import MarkGlyphs from './MarkGlyphs.svelte';
+  import { blocksOf } from '../structure/blocks';
+  import { chipsOf } from '../structure/jumps';
   import { dragEdge, insertMeasures, moveBox, outlineRect, snapBox, splitMeasure, type Edge } from './markup';
 
   // `onstep` is called just before a gesture edits the boxes, so each drag, drawn box or split is its own undo step
@@ -155,7 +157,9 @@
   }
 
   const here = $derived(app.piece.measures.map((m, i) => ({ m, i })).filter(({ m }) => m.page === pageNum));
+  const blocks = $derived(blocksOf(app.piece.measures));
   const bars = $derived(barLabels(app.piece.measures)); // printed bar numbers: a multi-measure rest skips ahead
+  const chips = $derived(chipsOf(app.piece.measures, bars));
   const label = (i: number) => boxLabel(app.piece, i);
   const inRamp = (i: number) => rampOf(app.piece, i);
 
@@ -183,7 +187,8 @@
     <button type="button" class="box" class:sel={i === app.selected} class:range={i > app.selected && i <= app.extent} class:playing={i === app.playing} class:ramp={inRamp(i)}
       style:--x={m.rect.x} style:--y={m.rect.y} style:--w={m.rect.w} style:--h={m.rect.h}
       onclick={(e) => pick(e, i)} onpointerdown={(e) => boxDown(e, i)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragEnd}>
-      <MarkGlyphs marks={m.marks} paper />
+      <MarkGlyphs marks={m.marks} blocks={blocks[i]} chips={chips[i]} paper />
+      {#if m.marks?.part}<span class="partname">{m.marks.part.name || 'Part'}</span>{/if}
       <span class="n">{bars[i]}</span><span class="tag">{label(i)}</span>
       {#if mode === 'select' && i === app.selected}
         {#each EDGES as edge}
@@ -216,6 +221,7 @@
   .handle.bottom { bottom: -7px; }
   .box.playing { background: color-mix(in srgb, var(--on-paper-play) 35%, transparent); border-color: var(--on-paper-play); }
   .ghost { border-style: dashed; pointer-events: none; }
+  .partname { position: absolute; left: 0; bottom: 100%; margin-bottom: 4px; padding: 0 4px; background: var(--on-paper-accent); color: var(--paper); border-radius: 3px; font-size: 11px; font-weight: 700; white-space: nowrap; pointer-events: none; }
   .n { position: absolute; top: -1px; left: 2px; font-size: 10px; font-weight: 700; color: var(--on-paper-accent); }
   .tag { position: absolute; bottom: 0; left: 2px; font-size: 10px; color: var(--on-paper-tag); white-space: nowrap; }
   .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--fg-muted); margin: 0; }

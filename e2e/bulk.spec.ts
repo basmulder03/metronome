@@ -20,8 +20,10 @@ test('Shift+click selects a run of measures that are edited together', async ({ 
   await expect(page.locator('.box').nth(1)).toContainText('3/4');
   await expect(page.locator('.box').nth(5)).toContainText('4/4'); // the bar after the run is back to what it was
   await page.getByRole('button', { name: '1st ending' }).click();
-  await expect(page.locator('.box').nth(3).locator('.volta')).toHaveText('1.');
-  await expect(page.locator('.box').nth(5).locator('.volta')).toHaveCount(0);
+  await expect(page.locator('.box').nth(1).locator('.block.ending .label')).toHaveText('1.'); // labelled once, at the start of the line
+  await expect(page.locator('.box').nth(3).locator('.block.ending')).toHaveCount(1);
+  await expect(page.locator('.box').nth(3).locator('.block.ending .label')).toHaveCount(0);
+  await expect(page.locator('.box').nth(5).locator('.block.ending')).toHaveCount(0);
 
   page.once('dialog', (d) => void d.accept());
   await page.getByRole('button', { name: /Delete these 4 boxes/ }).click();
