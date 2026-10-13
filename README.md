@@ -44,7 +44,9 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   trusts `CF-Connecting-IP` only from Cloudflare's published ranges and passes the visitor's address as `X-Forwarded-For`;
   PocketBase is set (Settings, User IP proxy headers) to read that header, so the login limit counts visitors, not Cloudflare.
 - Cloudflare's SSL mode must be *Full* or *Full (strict)*: with *Flexible* the redirect on port 80 loops.
-- Registration stays *Invitation only*. Back up `/var/lib/metronome/pb_data`.
+- Registration stays *Invitation only*. A migration turns on PocketBase's own **nightly backup** (03:30 server time, the last 14 kept, as
+  zips in `pb_data/backups`). They sit on the same disk: download one now and then (dashboard `/_/`, Settings, Backups) or copy
+  the folder off the machine. Before a risky deploy a plain `cp -a` of `pb_data` is still a good habit.
 - Ship a new build with `DEPLOY_HOST=root@host scripts/deploy.sh`.
 
 ### Editing the measure boxes
