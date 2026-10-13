@@ -36,7 +36,7 @@
     <input type="range" min="0" max={Math.max(0, n - 1)} step="1" value={here} disabled={n < 2} aria-label="Position in the piece" aria-valuetext={label}
       oninput={(e) => onseek(+e.currentTarget.value, false)} onchange={(e) => onseek(+e.currentTarget.value, true)} />
   </div>
-  <span class="where" aria-live="off">{label}</span>
+  <span class="where" aria-live="off">{label}{sound.speed !== 100 ? ` · ${sound.speed}%` : ''}</span>
   <details class="sound">
     <summary>Sound</summary>
     <div class="panel">
@@ -45,6 +45,9 @@
       </label>
       <label>Sound
         <select bind:value={sound.kit} onchange={saveSound}>{#each Object.entries(KIT_NAMES) as [k, name]}<option value={k as Kit}>{name}</option>{/each}</select>
+      </label>
+      <label>Speed {sound.speed}%
+        <input type="range" min="25" max="200" step="5" bind:value={sound.speed} onchange={saveSound} />
       </label>
       <label>Volume {Math.round(sound.volume * 100)}%
         <input type="range" min="0" max="1" step="0.05" bind:value={sound.volume} onchange={saveSound} />

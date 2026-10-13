@@ -1,5 +1,6 @@
 import { emptyPiece } from './types';
 import { buildTimeline } from '../features/tempo-map/timeline';
+import { sound } from '../features/playback/sound.svelte';
 
 export const app = $state({
   piece: emptyPiece(),
@@ -8,7 +9,8 @@ export const app = $state({
   playing: -1, // measure being played, -1 when stopped
 });
 
-export const timeline = () => buildTimeline(app.piece);
+/** The piece's timeline at the speed chosen in the playback bar (or `percent`). */
+export const timeline = (percent = sound.speed) => buildTimeline(app.piece, percent / 100);
 
 /** The selected run of measures [first, last], or null for a single measure. */
 export const selectedRange = (): [number, number] | null =>

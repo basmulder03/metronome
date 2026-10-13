@@ -5,8 +5,9 @@
   import { clearRepeatsOver, removeRange, setEndingOver, setMeterOver, setTempoOver } from './bulk';
   import { tempoAt } from '../tempo-map/timeline';
   import { DEFAULT_BPM } from '../../shared/types';
+  import PracticeSection, { type Trainer } from '../playback/PracticeSection.svelte';
 
-  let { onpractice }: { onpractice: (from: number, to: number, gap: number) => void } = $props();
+  let { onpractice }: { onpractice: (from: number, to: number, gap: number, trainer?: Trainer) => void } = $props();
 
   // Several measures picked with Shift+click: one change for all of them.
   const range = $derived(selectedRange() ?? [app.selected, app.selected]);
@@ -18,7 +19,6 @@
   let beats = $state(4);
   let note = $state(4);
   let bpm = $state(DEFAULT_BPM);
-  let rest = $state(2);
   let message = $state('');
   $effect(() => { bpm = tempoAt(app.piece, from)?.bpm ?? DEFAULT_BPM; });
 
@@ -64,11 +64,7 @@
   <Button onclick={() => { clearRepeatsOver(app.piece, from, to); done(`Cleared repeats and jumps in ${what}.`); }}>Clear all repeats and jumps</Button>
 </details>
 
-<details class="sec" open>
-  <summary>Practice</summary>
-  <div class="row"><label>Rest between (s)<input type="number" min="0" max="30" step="0.5" bind:value={rest} /></label></div>
-  <Button variant="primary" onclick={() => onpractice(from, to, Math.min(30, Math.max(0, +rest || 0)))}>Practise {what}</Button>
-</details>
+<PracticeSection start={from} last={to} {onpractice} />
 
 <div class="sec"><Button onclick={removeAll}>Delete these {count} boxes</Button></div>
 

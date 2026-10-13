@@ -111,7 +111,8 @@ export const tempoAt = (p: Piece, m: number) => last(p.tempos, m);
 
 const SUBSTEPS = 16;
 
-export function buildTimeline(p: Piece): Timeline {
+/** `speed`: 1 plays as written, 0.5 half as fast (every time is stretched; the music itself is not changed). */
+export function buildTimeline(p: Piece, speed = 1): Timeline {
   const n = p.measures.length;
   const meters = Array.from({ length: n }, (_, m) => meterAt(p, m));
   const rests = p.measures.map(barsIn); // a multi-measure rest is several whole bars under one box
@@ -159,5 +160,7 @@ export function buildTimeline(p: Piece): Timeline {
     }
   }
   const parts = partsOf(p.measures);
+  const k = 1 / Math.min(4, Math.max(0.25, speed || 1));
+  if (k !== 1) { for (const b of beats) b.time *= k; for (const st of steps) st.time *= k; time *= k; }
   return { beats, steps, measureCount: n, duration: time, parts, partOfStep: steps.map((s) => partIndexOf(parts, s.measure)) };
 }

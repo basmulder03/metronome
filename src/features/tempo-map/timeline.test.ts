@@ -254,3 +254,15 @@ describe('multi-measure rests', () => {
     expect(buildTimeline(p).steps[3].time).toBeCloseTo(24 * Math.LN2, 2);
   });
 });
+
+describe('speed', () => {
+  it('stretches every time, and nothing else', () => {
+    const p = emptyPiece();
+    for (let i = 0; i < 3; i++) p.measures.push({ id: `m${i}`, page: 0, rect: { x: 0, y: 0, w: 0.1, h: 0.1 } });
+    const full = buildTimeline(p), half = buildTimeline(p, 0.5);
+    expect(half.duration).toBeCloseTo(full.duration * 2, 6);
+    expect(half.beats.map((b) => b.accent)).toEqual(full.beats.map((b) => b.accent));
+    expect(half.steps[2].time).toBeCloseTo(full.steps[2].time * 2, 6);
+    expect(buildTimeline(p, 1).duration).toBeCloseTo(full.duration, 9);
+  });
+});

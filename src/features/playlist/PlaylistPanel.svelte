@@ -1,7 +1,7 @@
 <script lang="ts">
   import { clickEvents, joinJobs, longExportWarning, Player, renderJob } from '../playback/audio';
   import { buildTimeline, countIn } from '../tempo-map/timeline';
-  import { clickOpts } from '../playback/sound.svelte';
+  import { clickOpts, sound } from '../playback/sound.svelte';
   import { entry, lib } from '../library/library.svelte';
   import Button from '../../shared/ui/Button.svelte';
   import { encodePlaylist } from '../share/codec';
@@ -37,7 +37,7 @@
 
   const plan = (r: (typeof rows)[number]) => {
     const piece = r.e!.piece;
-    const tl = buildTimeline(piece);
+    const tl = buildTimeline(piece, sound.speed / 100);
     return { piece, tl, pre: countIn(piece, tl, 0, piece.countIn ?? 0), last: piece.measures.length - 1, title: r.e!.title };
   };
 

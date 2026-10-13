@@ -13,6 +13,7 @@
   import { actionFor, type Action } from './features/score/shortcuts';
   import ShortcutsDialog from './features/score/ShortcutsDialog.svelte';
   import { createHistory } from './shared/history';
+  import type { Trainer } from './features/playback/PracticeSection.svelte';
   import StructureEditor from './features/structure/StructureEditor.svelte';
   import Inspector from './features/tempo-map/Inspector.svelte';
   import MeasureStrip from './features/score/MeasureStrip.svelte';
@@ -104,7 +105,7 @@
   async function openEntry(id: string, pdf?: Blob) {
     const e = entry(id);
     if (!e) return;
-    player.stop();
+    stopPractice(); player.stop();
     clearTimeout(saveTimer);
     await saveCurrent(app.piece);
     // load the PDF first so the piece and its page swap in together
@@ -202,6 +203,28 @@
     playing = await player.play(tl, from, to, loop, clickOpts({ gap }), pre, endStep);
     if (playing && endStep !== undefined) void announceStop(tl, endStep);
   }
+
+  /**
+   * Practice: loop a run of measures with a rest between laps. With a `trainer` every lap is a bit faster than the one before,
+   * from `from` up to `to` percent of the written tempo, and stays there.
+   */
+  async function practise(from: number, to: number, gap: number, trainer?: Trainer) {
+    stopPractice();
+    if (!trainer) return void play(from, to, true, undefined, gap);
+    const run = ++practiceRun;
+    practising = true;
+    for (let pct = trainer.from; run === practiceRun; pct = Math.min(trainer.to, pct + trainer.step)) {
+      status = `Practising at ${pct}%${pct < trainer.to ? ` (up to ${trainer.to}%)` : ''}`;
+      const tl = timeline(pct);
+      playing = await player.play(tl, from, to, false, clickOpts(), [], undefined);
+      if (!playing || !(await player.whenDone) || run !== practiceRun) break;
+      await new Promise((r) => setTimeout(r, gap * 1000)); // the rest
+    }
+    if (run === practiceRun) { practising = false; status = ''; }
+  }
+  let practiceRun = 0;
+  let practising = $state(false);
+  function stopPractice() { practiceRun++; practising = false; }
 
   /** The sheet has several parts and playback stopped at the end of one: get the next part ready, so Space or Play continues. */
   async function announceStop(tl: ReturnType<typeof timeline>, endStep: number) {
@@ -344,8 +367,8 @@
           status = n ? `Tidied ${n} box${n === 1 ? '' : 'es'} in this row.` : 'This row is already tidy.';
         }
         break;
-      case 'play': if (playing) player.stop(); else void playFromSelected(); break;
-      case 'escape': if (playing) player.stop(); else app.selected = -1; break;
+      case 'play': if (playing || practising) { stopPractice(); player.stop(); } else void playFromSelected(); break;
+      case 'escape': if (playing || practising) { stopPractice(); player.stop(); } else app.selected = -1; break;
       case 'undo': case 'redo': {
         const json = a.type === 'undo' ? edits.undo() : edits.redo();
         if (json) { app.piece = JSON.parse(json); app.selected = Math.min(app.selected, app.piece.measures.length - 1); }
@@ -555,12 +578,12 @@
     {/if}
   </div>
   <Sheet hidden={!!doc && !preview && mode !== 'select'}>{#if selectedRange()}
-      <BulkEditor onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} />
+      <BulkEditor onpractice={(from, to, gap, trainer) => void practise(from, to, gap, trainer)} />
     {:else}
-      <Inspector onplay={play} onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} /><StructureEditor />
+      <Inspector onplay={play} onpractice={(from, to, gap, trainer) => void practise(from, to, gap, trainer)} /><StructureEditor />
     {/if}</Sheet>
 </main>
-<PlayBar {playing} {position} onplay={() => void playFromSelected()} onstop={() => player.stop()} onseek={seek} />
+<PlayBar playing={playing || practising} {position} onplay={() => void playFromSelected()} onstop={() => { stopPractice(); player.stop(); if (status.startsWith('Practising')) status = ''; }} onseek={seek} />
 </div>
 
 <style>
