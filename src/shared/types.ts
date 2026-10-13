@@ -42,6 +42,9 @@ export type TempoEvent = { at: number; bpm: number; unit: Unit };
 /** Tempo moves from startBpm to endBpm across measures from..to (inclusive) along `curve`. */
 export type Ramp = { from: number; to: number; startBpm: number; endBpm: number; curve: Curve };
 
+/** A named stretch to practise ("bars 17-24, the hard run"), between two boxes by id so it follows them when boxes are added or removed. */
+export type Section = { name: string; from: string; to: string };
+
 export type Piece = {
   measures: Measure[];
   meters: MeterEvent[];
@@ -51,6 +54,7 @@ export type Piece = {
   countIn?: number;
   /** At the end of a part: keep playing (default) or stop and wait for the player. */
   afterPart?: 'continue' | 'stop';
+  sections?: Section[];
 };
 
 export const emptyPiece = (): Piece => ({ measures: [], meters: [], tempos: [], ramps: [], countIn: 0 });

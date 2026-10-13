@@ -24,8 +24,14 @@ const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-
 const unb64 = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 
 const q = (n: number) => Math.round(n * 10000);
+// sections point at boxes by id inside the app, and by position in a link (the importer makes its own ids)
+function sectionsAsPositions(p: Piece) {
+  const at = (id: string) => p.measures.findIndex((m) => m.id === id);
+  const out = (p.sections ?? []).map((s) => ({ name: s.name, from: at(s.from), to: at(s.to) })).filter((s) => s.from >= 0 && s.to >= 0);
+  return out.length ? out : undefined;
+}
 // no measure ids (imports make their own) and boxes as whole numbers in 1/10000 of the page: far shorter than UUIDs and long decimals
-const squeeze = (piece: Piece) => ({ ...piece, measures: piece.measures.map((m) => [m.page, q(m.rect.x), q(m.rect.y), q(m.rect.w), q(m.rect.h), ...(m.marks ? [m.marks] : [])]) });
+const squeeze = (piece: Piece) => ({ ...piece, sections: sectionsAsPositions(piece), measures: piece.measures.map((m) => [m.page, q(m.rect.x), q(m.rect.y), q(m.rect.w), q(m.rect.h), ...(m.marks ? [m.marks] : [])]) });
 const expand = (p: { measures?: unknown }): Piece | null => {
   if (!Array.isArray(p?.measures)) return null;
   return validatePiece({ ...p, measures: p.measures.map((a: unknown) => Array.isArray(a)

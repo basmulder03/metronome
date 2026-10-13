@@ -72,3 +72,33 @@ test('the tempo trainer starts slow and speeds up lap by lap, and the speed slid
   const slow = await seconds();
   expect(slow).toBeGreaterThan(full * 1.8);
 });
+
+test('a practice stretch can be saved as a named section, stays with the piece, and practised again', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('header input[type=file]').setInputFiles('e2e/score.pdf');
+  await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Auto-detect' }).click();
+  await expect(page.locator('.box')).toHaveCount(8);
+  await page.locator('.box').nth(0).click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  await page.getByLabel('BPM').first().fill('400');
+  await page.locator('.box').nth(2).click();
+  await page.getByLabel('Loop through measure').fill('4');
+  await page.getByLabel('Loop through measure').blur();
+  await page.getByLabel('Keep this stretch as a section').fill('The hard run');
+  await page.getByRole('button', { name: 'Save section' }).click();
+  await expect(page.getByText('The hard run')).toBeVisible();
+  await expect(page.getByText('measures 3–4')).toBeVisible();
+
+  await page.waitForTimeout(500);
+  await page.reload();
+  await page.locator('.box').nth(5).click(); // a different place: the section is listed wherever you are
+  await expect(page.getByText('The hard run')).toBeVisible();
+  await page.getByRole('button', { name: 'Practise The hard run' }).click();
+  await expect(page.locator('.box.playing')).toHaveCount(1);
+  await expect.poll(() => page.locator('.box').evaluateAll((els) => els.findIndex((e) => e.classList.contains('playing')))).toBeGreaterThanOrEqual(2);
+  await page.getByRole('button', { name: 'Stop' }).click();
+
+  await page.getByRole('button', { name: 'Remove section The hard run' }).click();
+  await expect(page.getByText('The hard run')).toHaveCount(0);
+});

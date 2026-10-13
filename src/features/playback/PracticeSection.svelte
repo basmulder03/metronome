@@ -2,6 +2,7 @@
   import Button from '../../shared/ui/Button.svelte';
   import { app } from '../../shared/store.svelte';
   import { barLabels, firstBar } from '../structure/bars';
+  import { addSection, removeSection, sectionRange } from '../structure/sections';
 
   /** Gradually faster laps: each one `step` percent quicker than the last, from `from` up to `to` percent of the written tempo. */
   export type Trainer = { from: number; to: number; step: number };
@@ -22,7 +23,16 @@
   const bars = $derived(barLabels(app.piece.measures));
   const name = $derived(`${firstBar(bars[start] ?? '')}${end > start ? `–${firstBar(bars[end] ?? '')}` : ''}`);
   const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(+n) || lo));
-  const go = () => onpractice(start, end, Math.min(30, Math.max(0, +rest || 0)), train ? { from: clamp(from, 25, 200), to: clamp(to, 25, 200), step: clamp(step, 1, 50) } : undefined);
+  const go = (a = start, b = end) => onpractice(a, b, Math.min(30, Math.max(0, +rest || 0)), train ? { from: clamp(from, 25, 200), to: clamp(to, 25, 200), step: clamp(step, 1, 50) } : undefined);
+
+  // saved sections: named stretches that stay with the piece
+  let sectionName = $state('');
+  const sections = $derived((app.piece.sections ?? []).map((s, index) => ({ s, index, range: sectionRange(app.piece, s) })));
+  const label = (a: number, b: number) => `${firstBar(bars[a] ?? '')}${b > a ? `–${firstBar(bars[b] ?? '')}` : ''}`;
+  function save() {
+    addSection(app.piece, sectionName, start, end);
+    sectionName = '';
+  }
 </script>
 
 <details class="sec" open>
@@ -43,11 +53,31 @@
       <label>Faster by %<input type="number" min="1" max="50" bind:value={step} /></label>
     </div>
   {/if}
-  <Button variant="primary" onclick={go}>Practise {name}</Button>
+  <Button variant="primary" onclick={() => go()}>Practise {name}</Button>
+  <div class="row">
+    <label>Keep this stretch as a section<input bind:value={sectionName} maxlength="80" placeholder="e.g. the hard run" onkeydown={(e) => { if (e.key === 'Enter') save(); }} /></label>
+    <Button onclick={save} disabled={!sectionName.trim()}>Save section</Button>
+  </div>
+  {#if sections.length}
+    <ul class="saved">
+      {#each sections as { s, index, range } (index)}
+        <li>
+          <span><strong>{s.name}</strong> <span class="mut">{range ? `measures ${label(range[0], range[1])}` : 'its measures were deleted'}</span></span>
+          <span class="acts">
+            {#if range}<Button size="sm" onclick={() => go(range[0], range[1])} aria-label="Practise {s.name}">Practise</Button>{/if}
+            <Button size="sm" onclick={() => removeSection(app.piece, index)} aria-label="Remove section {s.name}">✕</Button>
+          </span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 </details>
 
 <style>
   .sec { border-top: 1px solid var(--border); padding: var(--space-2) 0; }
   .sec > :global(:not(summary)) { margin-top: var(--space-2); }
+  .saved { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+  .saved li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+  .acts { display: flex; gap: var(--space-1); }
   summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fg-muted); min-height: 28px; }
 </style>

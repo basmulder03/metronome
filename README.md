@@ -93,7 +93,8 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   "Fine ■"; a jump with no segno or coda to go to is shown in red.
 - **Practice loop:** select a measure, open *Practice* in its settings, choose the last measure and a rest in seconds, and
   press *Practise*. The range repeats, with the rest in between, until you press Stop (or Space). Repeats inside the range are
-  played as written. *Speed up every lap* is a tempo trainer: start at, say, 70% and get 5% faster each lap up to 100%.
+  played as written. *Keep this stretch as a section* saves it by name with the piece (it travels with share links and backups, and
+  follows its boxes when you add or remove others); a saved section has its own *Practise* button. *Speed up every lap* is a tempo trainer: start at, say, 70% and get 5% faster each lap up to 100%.
 - **Speed:** *Sound > Speed* (25-200%) plays and exports the piece slower or faster than written, without editing it; it is
   remembered on the device.
 - **Bulk editing:** Shift+click a second measure (or type *Edit several: through measure*, for touch screens) to select a run.

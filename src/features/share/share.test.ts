@@ -131,3 +131,33 @@ describe('playlist share', () => {
     expect(await decodeAny(await encodePlaylist('x', 4, []))).toBeNull();
   });
 });
+
+describe('saved practice sections', () => {
+  const withSections = () => {
+    const p = sample();
+    p.sections = [{ name: 'Hard run', from: 'x1', to: 'x2' }, { name: 'Gone', from: 'x1', to: 'nope' }];
+    return p;
+  };
+
+  it('survive a share link, as positions, and the importer gets its own ids', async () => {
+    const out = (await decodeShare(await encodeShare('S', withSections())))!;
+    expect(out.piece.sections).toHaveLength(1); // the one pointing at a missing box is dropped
+    const [s] = out.piece.sections!;
+    expect(s.name).toBe('Hard run');
+    expect(out.piece.measures.findIndex((m) => m.id === s.from)).toBe(1);
+    expect(out.piece.measures.findIndex((m) => m.id === s.to)).toBe(2);
+  });
+
+  it('survive a backup file, which keeps the ids', () => {
+    const json = JSON.parse(JSON.stringify(withSections()));
+    const p = validatePiece(json)!;
+    expect(p.sections).toHaveLength(1);
+    expect(p.measures.findIndex((m) => m.id === p.sections![0].to)).toBe(2);
+  });
+
+  it('refuse junk: names, counts, positions out of range', () => {
+    const x = JSON.parse(JSON.stringify(sample()));
+    x.sections = [{ name: '', from: 0, to: 1 }, { name: 'x'.repeat(81), from: 0, to: 1 }, { name: 'ok', from: 0, to: 99 }, { name: 'fine', from: 0, to: 3 }, 7, null];
+    expect(validatePiece(x)!.sections!.map((s) => s.name)).toEqual(['fine']);
+  });
+});

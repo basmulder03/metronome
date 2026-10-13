@@ -5,6 +5,7 @@ const num = (v: unknown, min: number, max: number): v is number => typeof v === 
 const int = (v: unknown, min: number, max: number): v is number => num(v, min, max) && Number.isInteger(v);
 const DENS = [1, 2, 4, 8, 16, 32, 64];
 const MAX_MEASURES = 2000;
+const MAX_SECTIONS = 50;
 
 function marks(v: unknown): Marks | undefined {
   if (!isObj(v)) return undefined;
@@ -30,12 +31,15 @@ export function validatePiece(x: unknown): Piece | null {
   const n = x.measures.length;
   const piece: Piece = { measures: [], meters: [], tempos: [], ramps: [], countIn: int(x.countIn, 0, 4) ? x.countIn : 0, ...(x.afterPart === 'stop' && { afterPart: 'stop' as const }) };
 
+  const ids = new Map<string, string>(); // the ids the data came with (a backup file has them) and the fresh ones
   for (const m of x.measures) {
     if (!isObj(m) || !int(m.page, 0, 9999) || !isObj(m.rect)) return null;
     const { x: rx, y: ry, w, h } = m.rect;
     if (!num(rx, 0, 1) || !num(ry, 0, 1) || !num(w, 0.0001, 1) || !num(h, 0.0001, 1)) return null;
     const mk = marks(m.marks);
-    piece.measures.push({ id: crypto.randomUUID(), page: m.page, rect: { x: rx, y: ry, w, h }, ...(mk && { marks: mk }) });
+    const id = crypto.randomUUID();
+    if (typeof m.id === 'string') ids.set(m.id, id);
+    piece.measures.push({ id, page: m.page, rect: { x: rx, y: ry, w, h }, ...(mk && { marks: mk }) });
   }
 
   for (const e of Array.isArray(x.meters) ? x.meters : []) {
@@ -55,6 +59,14 @@ export function validatePiece(x: unknown): Piece | null {
     const c = r.curve;
     if (!Array.isArray(c) || c.length !== 4 || !num(c[0], 0, 1) || !num(c[2], 0, 1) || !num(c[1], -2, 3) || !num(c[3], -2, 3)) return null;
     piece.ramps.push({ from: r.from, to: r.to, startBpm: r.startBpm, endBpm: r.endBpm, curve: [c[0], c[1], c[2], c[3]] });
+  }
+
+  // saved practice sections: `from`/`to` are positions (a share link) or the ids the pieces came with (a backup file)
+  const ref = (v: unknown) => (int(v, 0, n - 1) ? piece.measures[v].id : typeof v === 'string' ? ids.get(v) : undefined);
+  for (const sec of (Array.isArray(x.sections) ? x.sections : []).slice(0, MAX_SECTIONS)) {
+    if (!isObj(sec) || typeof sec.name !== 'string' || !sec.name.trim() || sec.name.length > 80) continue;
+    const from = ref(sec.from), to = ref(sec.to);
+    if (from && to) (piece.sections ??= []).push({ name: sec.name, from, to });
   }
   return piece;
 }
