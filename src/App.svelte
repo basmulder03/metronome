@@ -3,7 +3,7 @@
   import { openPdf } from './features/score/pdf';
   import { pulseIcon, resetIcon } from './features/playback/favicon';
   import PlayBar from './features/playback/PlayBar.svelte';
-  import { clickOpts } from './features/playback/sound.svelte';
+  import { beatSignal, clickOpts } from './features/playback/sound.svelte';
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn, firstStepOf, stopStepFrom } from './features/tempo-map/timeline';
   import { type Part, partIndexOf, partsOf } from './features/structure/parts';
@@ -169,7 +169,7 @@
 
   const player = new Player();
   let position = $state(0); // where the playback bar shows the click: measure + how far through it
-  player.onBeat = pulseIcon;
+  player.onBeat = (a) => { pulseIcon(a); beatSignal(a); };
   player.onMeasure = (m) => {
     app.playing = m;
     const pg = app.piece.measures[m]?.page;

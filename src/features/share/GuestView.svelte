@@ -3,7 +3,7 @@
   import { openPdf } from '../score/pdf';
   import { pulseIcon, resetIcon } from '../playback/favicon';
   import PlayBar from '../playback/PlayBar.svelte';
-  import { clickOpts } from '../playback/sound.svelte';
+  import { beatSignal, clickOpts } from '../playback/sound.svelte';
   import { clickEvents, longExportWarning, Player, renderJob } from '../playback/audio';
   import MeasureStrip from '../score/MeasureStrip.svelte';
   import PdfView from '../score/PdfView.svelte';
@@ -29,7 +29,7 @@
     const pg = app.piece.measures[m]?.page;
     if (pg !== undefined && doc) pageNum = pg;
   };
-  player.onBeat = pulseIcon;
+  player.onBeat = (a) => { pulseIcon(a); beatSignal(a); };
   let position = $state(0);
   player.onProgress = (v) => { if (v >= 0) position = v; };
   player.onStop = () => { playing = false; app.playing = -1; resetIcon(); };

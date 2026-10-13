@@ -61,3 +61,18 @@ test('click pattern, sound and volume are chosen in the bar and remembered', asy
   await expect(page.locator('.sound select').nth(2)).toHaveValue('alternate');
   await expect(page.locator('.sound input[type=range]').last()).toHaveValue('0.5');
 });
+
+test('a dot can flash on every beat', async ({ page }) => {
+  await detected(page);
+  await page.locator('.box').nth(0).click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  await page.getByLabel('BPM').first().fill('300');
+  await expect(page.locator('.dot')).toHaveCount(0); // off by default
+  await page.getByRole('group', { name: 'Playback' }).getByText('Sound', { exact: true }).click();
+  await page.getByLabel('Flash a dot on every beat').check();
+  await expect(page.locator('.dot')).toHaveCount(1);
+  await page.getByRole('button', { name: /^Play( from|$)/ }).click();
+  await expect(page.locator('.dot.on')).toHaveCount(1); // lights up with a beat
+  await expect(page.locator('.dot.on.down')).toHaveCount(1, { timeout: 5000 }); // and differently on the first beat of a bar
+  await page.getByRole('button', { name: 'Stop' }).click();
+});

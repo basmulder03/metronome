@@ -3,7 +3,7 @@
   import { app } from '../../shared/store.svelte';
   import { barLabels, firstBar } from '../structure/bars';
   import { KIT_NAMES, type Kit, type Pattern } from './audio';
-  import { saveSound, sound } from './sound.svelte';
+  import { beat, saveSound, sound } from './sound.svelte';
 
   // Always at the bottom: transport, a bar that shows where the click is in the piece and can be dragged to any measure, and the sound options.
   // `position`: the measure plus how far through it (4.5 = halfway through the fifth box). `onseek(measure, final)`: `final` once the finger lets go.
@@ -31,6 +31,7 @@
   {:else}
     <Button variant="primary" onclick={onplay} aria-label={app.selected >= 0 ? `Play from ${firstBar(bars[app.selected] ?? String(app.selected + 1))}` : 'Play'}>Play</Button>
   {/if}
+  {#if sound.flash}<span class="dot" class:on={beat.accent >= 0} class:down={beat.accent === 2} aria-hidden="true"></span>{/if}
   <div class="seek">
     <div class="track" aria-hidden="true"><div class="fill" style:width="{fill}%"></div></div>
     <input type="range" min="0" max={Math.max(0, n - 1)} step="1" value={here} disabled={n < 2} aria-label="Position in the piece" aria-valuetext={label}
@@ -46,6 +47,8 @@
       <label>Sound
         <select bind:value={sound.kit} onchange={saveSound}>{#each Object.entries(KIT_NAMES) as [k, name]}<option value={k as Kit}>{name}</option>{/each}</select>
       </label>
+      <label class="check"><input type="checkbox" bind:checked={sound.flash} onchange={saveSound} /> Flash a dot on every beat</label>
+      <label class="check"><input type="checkbox" bind:checked={sound.vibrate} onchange={saveSound} /> Vibrate on every beat (phones and tablets)</label>
       <label>Silent bars
         <select bind:value={sound.silent} onchange={saveSound}>
           <option value="off">None: the click plays throughout</option>
@@ -74,6 +77,9 @@
   .seek input::-moz-range-track { background: transparent; height: var(--tap); }
   .seek input::-webkit-slider-thumb { appearance: none; width: 22px; height: 22px; margin-top: 9px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); }
   .seek input::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
+  .dot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--accent); transition: background 0.05s; }
+  .dot.on { background: var(--accent); transform: scale(1.15); }
+  .dot.down { background: var(--warn); border-color: var(--warn); }
   .where { font-size: var(--font-sm); color: var(--fg-muted); white-space: nowrap; }
   .sound { position: relative; }
   .sound summary { cursor: pointer; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); display: inline-flex; align-items: center; }
