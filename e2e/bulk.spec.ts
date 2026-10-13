@@ -15,7 +15,7 @@ test('Shift+click selects a run of measures that are edited together', async ({ 
   await expect(page.locator('.box.range')).toHaveCount(3);
   await expect(page.getByRole('heading', { name: 'Measures 2–5' })).toBeVisible();
 
-  await page.getByLabel('Beats').fill('3');
+  await page.getByLabel('Beats', { exact: true }).fill('3');
   await page.getByRole('button', { name: 'Apply to these measures' }).first().click();
   await expect(page.locator('.box').nth(1)).toContainText('3/4');
   await expect(page.locator('.box').nth(5)).toContainText('4/4'); // the bar after the run is back to what it was

@@ -107,3 +107,28 @@ describe('beatRange with an explicit end step', () => {
     expect(beatRange(tl, 0, 3)[1]).toBe(tl.beats.length);
   });
 });
+
+describe('click patterns', () => {
+  // 12/8 grouped 3+3+3+3: bar start, then a group start every third beat
+  const accents = [2, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0] as const;
+  const tl = {
+    beats: accents.map((accent, i) => ({ time: i * 0.25, measure: 0, step: 0, accent })),
+    steps: [{ measure: 0, time: 0 }], measureCount: 1, duration: 3, parts: [], partOfStep: [0],
+  };
+  const play = (o: Partial<Parameters<typeof clickEvents>[3]>) => clickEvents(tl, 0, 0, { subdivide: false, ...o }).events.map((e) => e.accent).join('');
+
+  it('groups: 1 2 2 2, every beat: 1 3 3 2 3 3 …, even: 1 1 1 1, bar: 1', () => {
+    expect(play({ pattern: 'groups' })).toBe('2111'); // accent 2 = strongest, 1 = group start
+    expect(play({ pattern: 'all' })).toBe('200100100100'); // 0 = soft subdivision
+    expect(play({ pattern: 'even' })).toBe('2222');
+    expect(play({ pattern: 'bar' })).toBe('2');
+  });
+
+  it('the older subdivide switch still means every beat', () => {
+    expect(play({ subdivide: true })).toBe('200100100100');
+  });
+
+  it('the sound settings travel with the job, so an export sounds like playback', () => {
+    expect(clickEvents(tl, 0, 0, { subdivide: false, kit: 'wood', volume: 0.5 }).sound).toEqual({ kit: 'wood', volume: 0.5 });
+  });
+});

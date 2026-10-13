@@ -2,11 +2,13 @@
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { openPdf } from '../score/pdf';
   import { pulseIcon, resetIcon } from '../playback/favicon';
+  import PlayBar from '../playback/PlayBar.svelte';
+  import { clickOpts } from '../playback/sound.svelte';
   import { clickEvents, longExportWarning, Player, renderJob } from '../playback/audio';
   import MeasureStrip from '../score/MeasureStrip.svelte';
   import PdfView from '../score/PdfView.svelte';
   import { countIn } from '../tempo-map/timeline';
-  import { app, timeline } from '../../shared/store.svelte';
+  import { app, choose, timeline } from '../../shared/store.svelte';
   import type { Piece } from '../../shared/types';
   import Button from '../../shared/ui/Button.svelte';
 
@@ -28,6 +30,8 @@
     if (pg !== undefined && doc) pageNum = pg;
   };
   player.onBeat = pulseIcon;
+  let position = $state(0);
+  player.onProgress = (v) => { if (v >= 0) position = v; };
   player.onStop = () => { playing = false; app.playing = -1; resetIcon(); };
   const last = $derived(app.piece.measures.length - 1);
 
@@ -45,12 +49,12 @@
     const tl = timeline();
     const from = Math.max(app.selected, 0);
     const pre = countIn(app.piece, tl, tl.beats.findIndex((b) => b.measure === from), app.piece.countIn ?? 0);
-    playing = await player.play(tl, from, last, false, { subdivide: false }, pre);
+    playing = await player.play(tl, from, last, false, clickOpts(), pre);
   }
 
   async function exportWav() {
     const tl = timeline();
-    const job = clickEvents(tl, 0, last, { subdivide: false }, countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
+    const job = clickEvents(tl, 0, last, clickOpts(), countIn(app.piece, tl, 0, app.piece.countIn ?? 0));
     const warning = longExportWarning(job.seconds);
     if (warning && !confirm(warning)) return;
     busy = true;
@@ -73,11 +77,6 @@
       <Button disabled={pageNum >= doc.numPages - 1} onclick={() => pageNum++} aria-label="Next page">›</Button>
     </span>
   {/if}
-  {#if playing}
-    <Button variant="primary" onclick={() => player.stop()}>Stop</Button>
-  {:else}
-    <Button variant="primary" onclick={() => void play()} aria-label={app.selected >= 0 ? `Play from ${app.selected + 1}` : 'Play'}>Play</Button>
-  {/if}
   <Button disabled={busy} onclick={() => void exportWav()}>{busy ? 'Rendering…' : 'Export WAV'}</Button>
   <Button onclick={onsignin}>Sign in to save a copy</Button>
 </header>
@@ -90,6 +89,8 @@
     <p class="mut hint">Shared links never include the score. Attach your own copy of the PDF to see it behind the measures.</p>
   {/if}
 </main>
+<PlayBar {playing} {position} onplay={() => void play()} onstop={() => player.stop()}
+  onseek={(m, final) => { choose(m); position = m; if (doc) pageNum = app.piece.measures[m]?.page ?? pageNum; if (final && playing) void play(); }} />
 
 <style>
   header { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
@@ -97,6 +98,6 @@
   .who .mut { margin: 0; font-size: var(--font-sm); }
   .grp { display: flex; gap: 6px; align-items: center; }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
-  .score { padding: var(--space-3); background: var(--surface); min-height: calc(100vh - 70px); }
+  .score { padding: var(--space-3); padding-bottom: calc(var(--bar-h) + var(--space-3)); background: var(--surface); min-height: calc(100vh - 70px); }
   .hint { margin-top: var(--space-4); }
 </style>

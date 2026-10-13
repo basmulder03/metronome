@@ -1,13 +1,13 @@
 <script lang="ts">
   import { clickEvents, joinJobs, longExportWarning, Player, renderJob } from '../playback/audio';
   import { buildTimeline, countIn } from '../tempo-map/timeline';
+  import { clickOpts } from '../playback/sound.svelte';
   import { entry, lib } from '../library/library.svelte';
   import Button from '../../shared/ui/Button.svelte';
   import { encodePlaylist } from '../share/codec';
   import { shortLink } from '../share/link';
   import { createPlaylist, move, pl, removePlaylist, touch, type Playlist } from './playlist.svelte';
 
-  let { subdivide }: { subdivide: boolean } = $props();
   let dialog: HTMLDialogElement;
   let selectedId = $state<string | null>(null);
   let adding = $state('');
@@ -49,7 +49,7 @@
       const { tl, pre, last, title } = plan(r);
       player.onMeasure = (m) => (now = { index, title, measure: m, total: last, gap: false });
       now = { index, title, measure: 0, total: last, gap: false };
-      if (!(await player.play(tl, 0, last, false, { subdivide }, pre))) continue;
+      if (!(await player.play(tl, 0, last, false, clickOpts(), pre))) continue;
       if (!(await player.whenDone) || cancelled) break;
       if (index < playable.length - 1) {
         now = { index, title: `Next: ${plan(playable[index + 1]).title}`, measure: 0, total: 0, gap: true };
@@ -65,7 +65,7 @@
     if (!sel || !playable.length) return;
     busy = true;
     try {
-      const job = joinJobs(playable.map((r) => { const { tl, pre, last } = plan(r); return clickEvents(tl, 0, last, { subdivide }, pre); }), sel.gap);
+      const job = joinJobs(playable.map((r) => { const { tl, pre, last } = plan(r); return clickEvents(tl, 0, last, clickOpts(), pre); }), sel.gap);
       const warning = longExportWarning(job.seconds);
       if (warning && !confirm(warning)) return;
       const blob = await renderJob(job, (f) => (progress = f));

@@ -96,6 +96,17 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   The panel then sets the time signature or tempo for the whole run (the music after it keeps what it had), puts an ending
   over it, clears its repeats and jumps, deletes the boxes, or starts a practice loop on it. In the Library, tick several
   pieces to delete them or add them to a playlist.
+- **Playback bar (always at the bottom):** Play/Stop, a progress bar that follows the click and can be dragged (or used with the
+  arrow keys) to any measure (the picked measure and the page follow; when playing, playback restarts there when you let go), and
+  *Sound*: the **click pattern** (beats and groups `1 2 2 2`; every beat with soft subdivisions, e.g. 12/8 as `1 3 3 2 3 3 2 3 3 2 3 3`;
+  group beats all equal `1 1 1 1`; start of the bar only), the **sound** (click, wood block, beep, tick) and the **volume**. These
+  are remembered on the device and also apply to exports and playlists.
+- **Tablets and pens:** the app opens in *Select* mode. Everything that had a shortcut also has a button (undo, redo, previous/next
+  measure, merge, tidy). From 900px wide the settings are a panel beside the score (nothing is ever covered); narrower, a sheet at
+  the bottom. Touch targets are finger-sized and the edge grips bigger on touch screens. When a **pen** (an S Pen, say) is used the app
+  switches to *pen mode* (also in Options): the pen draws a box anywhere on the page (no need to switch to Draw), moves a box or its
+  edge by dragging it, and fingers only scroll and tap; a palm resting on the screen while writing is ignored. Pinch-zoom is replaced
+  by the zoom buttons while pen mode is on.
 - **The tab icon beats** in time with the click while playing, with a bigger swell on the first beat of each bar.
 - **Moving a library:** in the Library, *Export all* saves the markup of every piece as one file (never a PDF) and *Import file*
   adds the pieces from such a file. That is how markup made on a test server is moved to the real one.
@@ -158,7 +169,7 @@ a courtesy.
 ```bash
 npm test                 # unit tests (vitest)
 npm run check            # svelte-check / types
-npm run e2e              # Playwright: desktop + phone viewports, a production-build offline run, and a real backend
+npm run e2e              # Playwright: desktop, phone and tablet (portrait and landscape, real touch and pen events) viewports, a production-build offline run, and a real backend
 ```
 
 The browser tests start their own throw-away backend and register a fresh user per test. One fixture is a real
@@ -173,7 +184,7 @@ Vertical slices under `src/features`, shared pieces under `src/shared`:
 | `score` | PDF page view, measure boxes (draw / split / merge / drag), keyboard shortcuts, barline auto-detection, reading marks from the PDF (text layer or OCR), measure grid |
 | `tempo-map` | Timeline engine (meters, tempos, bezier ramps, pickups, fermatas, count-in), inspector, curve editor, tap tempo |
 | `structure` | Repeats, endings, D.C./D.S. and how they unroll into a playing order |
-| `playback` | Click scheduling on the audio clock (loops with a rest, beat callback), offline WAV rendering, the beating tab icon |
+| `playback` | Click scheduling on the audio clock (patterns, sounds, volume, loops with a rest, beat callback), offline WAV rendering, the playback bar, the beating tab icon |
 | `library` | Pieces and their PDFs, stored on the device (IndexedDB, one database per account) |
 | `playlist` | Ordered pieces, sequential playback, one-file export |
 | `share` | Link codec (pieces and playlists) and validation (untrusted input), short-link client, read-only guest view |

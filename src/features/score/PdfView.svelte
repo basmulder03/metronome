@@ -11,7 +11,8 @@
 
   // `onstep` is called just before a gesture edits the boxes, so each drag, drawn box or split is its own undo step
   // `snap`: new and dragged boxes line up with their neighbours (hold Alt to skip it for one gesture)
-  let { doc, pageNum, zoom, mode, onstep = () => {}, snap = true }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select'; onstep?: () => void; snap?: boolean } = $props();
+  // `stylus`: the pen draws (in any mode) and moves boxes, and fingers only scroll and tap; `onpen` tells the app a pen was seen, to switch that on
+  let { doc, pageNum, zoom, mode, onstep = () => {}, snap = true, stylus = false, onpen = () => {} }: { doc: PDFDocumentProxy | null; pageNum: number; zoom: number; mode: 'draw' | 'split' | 'select'; onstep?: () => void; snap?: boolean; stylus?: boolean; onpen?: () => void } = $props();
 
   let canvas: HTMLCanvasElement;
   let renderedWidth = 0; // width the page was last drawn at (plain variable: reading it must not re-run the render)
@@ -95,13 +96,39 @@
     x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y),
   });
 
+  // Pen and finger: a pen is seen as it hovers (an S Pen reports that before it touches), and a palm resting on the screen while writing is ignored.
+  let lastPen = -Infinity;
+  const isPen = (e: PointerEvent) => e.pointerType === 'pen';
+  function seenPen(e: PointerEvent) { if (isPen(e)) { lastPen = performance.now(); onpen(); } }
+  const palm = (e: PointerEvent) => e.pointerType === 'touch' && performance.now() - lastPen < 600;
+
+  // With a pen around, a finger scrolls the page by hand (the browser's own panning would swallow the pen's strokes too).
+  let pan: { id: number; x: number; y: number; moved: boolean } | null = null;
+  function panBy(e: PointerEvent) {
+    if (!pan || e.pointerId !== pan.id) return;
+    const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+    if (!pan.moved && Math.hypot(dx, dy) < 6) return; // still a tap
+    if (!pan.moved) overlay.setPointerCapture(e.pointerId); // from now on it is a scroll, not a click on a box
+    pan.moved = true;
+    pan.x = e.clientX; pan.y = e.clientY;
+    const sc = overlay.closest<HTMLElement>('.score');
+    const top = sc?.scrollTop ?? 0, left = sc?.scrollLeft ?? 0;
+    sc?.scrollBy(-dx, -dy);
+    window.scrollBy(-dx - (left - (sc?.scrollLeft ?? 0)), -dy - (top - (sc?.scrollTop ?? 0))); // what the page itself could not take, the window does
+  }
+
   function down(e: PointerEvent) {
-    if (mode !== 'draw') return;
+    seenPen(e);
+    if (palm(e)) return;
+    if (e.pointerType === 'touch' && stylus) { pan = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }; return; }
+    if (mode !== 'draw' && !isPen(e)) return;
+    if (isPen(e) && (mode === 'split' || (e.target as HTMLElement).closest('.box'))) return; // a pen on a box moves it; in Split it taps a barline
     start = norm(e);
     overlay.setPointerCapture(e.pointerId);
   }
-  const move = (e: PointerEvent) => { if (start) ghost = rectOf(start, norm(e)); };
+  const move = (e: PointerEvent) => { seenPen(e); panBy(e); if (start) ghost = rectOf(start, norm(e)); };
   function up(e: PointerEvent) {
+    pan = null;
     if (!start) return;
     const r = rectOf(start, norm(e));
     start = ghost = null;
@@ -119,12 +146,15 @@
   const EDGES: Edge[] = ['left', 'right', 'top', 'bottom'];
 
   function boxDown(e: PointerEvent, i: number) {
+    seenPen(e);
     if (mode !== 'select' || (e.target as HTMLElement).classList.contains('handle')) return;
+    if (stylus && e.pointerType === 'touch') return; // a finger on a box scrolls or taps; only the pen drags it
     // not selected yet: a plain click selects on `click`, after a field being edited has lost focus (its change event must still find its box)
     drag = { kind: 'move', i, ...norm(e), moved: false };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   function handleDown(e: PointerEvent, i: number, edge: Edge) {
+    if (stylus && e.pointerType === 'touch') return;
     e.stopPropagation();
     e.preventDefault();
     app.selected = i;
@@ -166,11 +196,16 @@
   // The settings sit over the lower part of the screen: keep the box you picked above it.
   $effect(() => {
     if (app.selected < 0 || app.playing >= 0) return;
-    queueMicrotask(() => {
+    requestAnimationFrame(() => { // after the settings have been drawn: their height decides how much room is left
       const el = overlay?.querySelector<HTMLElement>('.box.sel');
       if (!el || drag || mode !== 'select') return; // never move the page under a drag or while drawing, when the settings are hidden anyway
       const r = el.getBoundingClientRect();
-      if (r.bottom > innerHeight * 0.55 || r.top < 0) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      // A narrow screen's settings are a sheet over the lower part of the page: keep the box above it. From 900px they sit beside the page.
+      const a = document.querySelector('aside[aria-label="Measure settings"]')?.getBoundingClientRect();
+      const sheet = !!a && a.width > innerWidth * 0.9;
+      const bottom = sheet ? a.top - 12 : innerHeight - 70; // (70: the playback bar)
+      if (r.top < 0 || (!sheet && r.bottom > bottom)) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      else if (r.bottom > bottom) window.scrollBy(0, r.bottom - bottom);
     });
   });
 
@@ -181,7 +216,7 @@
 </script>
 
 <div role="application" aria-label="Score" class="page" bind:this={overlay} style:--zoom={zoom} style:--aspect={1 / aspect}
-  class:drawing={mode === 'draw'} onpointerdown={down} onpointermove={move} onpointerup={up}>
+  class:drawing={mode === 'draw'} class:stylus onpointerdown={down} onpointerenter={seenPen} onpointercancel={up} onpointermove={move} onpointerup={up}>
   <canvas bind:this={canvas}></canvas>
   {#each here as { m, i } (m.id)}
     <button type="button" class="box" class:sel={i === app.selected} class:range={i > app.selected && i <= app.extent} class:playing={i === app.playing} class:ramp={inRamp(i)}
@@ -204,7 +239,8 @@
 
 <style>
   .page { position: relative; width: calc(var(--zoom) * 100%); aspect-ratio: var(--aspect); max-width: 100%; background: var(--paper); margin: 0 auto; }
-  .page.drawing { touch-action: none; cursor: crosshair; }
+  .page.drawing, .page.stylus { touch-action: none; }
+  .page.drawing, .page.stylus { cursor: crosshair; }
   canvas { width: 100%; height: 100%; display: block; }
   .box { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--w) * 100%); height: calc(var(--h) * 100%); padding: 0; min-height: 0; border: 1px solid color-mix(in srgb, var(--on-paper-accent) 50%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--on-paper-accent) 6%, transparent); text-align: left; transition: background 0.12s; }
   .page.drawing .box { pointer-events: none; }
@@ -213,6 +249,15 @@
   .box.sel { outline: 2px solid var(--on-paper-accent); touch-action: none; cursor: move; }
   .handle { position: absolute; background: var(--on-paper-accent); opacity: 0.55; touch-action: none; }
   .handle:hover { opacity: 1; }
+  /* finger- and pen-sized grips on touch screens */
+  @media (pointer: coarse) {
+    .handle.left, .handle.right { width: 30px; }
+    .handle.left { left: -15px; }
+    .handle.right { right: -15px; }
+    .handle.top, .handle.bottom { height: 30px; }
+    .handle.top { top: -15px; }
+    .handle.bottom { bottom: -15px; }
+  }
   .handle.left, .handle.right { top: 0; bottom: 0; width: 14px; cursor: ew-resize; }
   .handle.left { left: -7px; }
   .handle.right { right: -7px; }

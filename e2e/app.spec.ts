@@ -15,6 +15,7 @@ async function openAndMark(page: Page) {
   await expect(page.getByText('1/1')).toBeVisible();
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(133); // PDF aspect applied
+  await page.getByRole('button', { name: 'Draw' }).click(); // the app opens in Select mode
   const b = (await score.boundingBox())!;
   // page is 600x800 pt; first system spans x 50..550, y 100..140 from top
   const px = (x: number, y: number) => ({ x: b.x + (x / 600) * b.width, y: b.y + (y / 800) * b.height });
@@ -130,9 +131,11 @@ test('toolbar does not shift the score when a measure is selected', async ({ pag
   const px = await openAndMark(page);
   void px;
   await page.locator('.box').first().click();
-  const y0 = (await page.locator('.titlebar').boundingBox())!.y; // the settings float over the page: nothing around the score moves
+  // the settings float over the page: nothing around the score moves (in page coordinates: the page itself may scroll to keep the box clear of them)
+  const top = () => page.evaluate(() => document.querySelector('.titlebar')!.getBoundingClientRect().y + scrollY);
+  const y0 = await top();
   await page.locator('.box').nth(3).click();
-  expect((await page.locator('.titlebar').boundingBox())!.y).toBe(y0);
+  expect(await top()).toBe(y0);
 });
 
 async function wavSeconds(page: Page) {

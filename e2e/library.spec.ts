@@ -10,6 +10,7 @@ async function drawOne(page: import('@playwright/test').Page) {
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return r.height > 0; }).toBe(true);
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Draw' }).click(); // the app opens in Select mode
   const b = (await score.boundingBox())!;
   await page.mouse.move(b.x + b.width * 0.1, b.y + b.height * 0.13);
   await page.mouse.down();

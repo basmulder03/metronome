@@ -10,6 +10,7 @@ test('real score: mark first system, set 3/4 at 130, export matches 6 bars', asy
   const score = page.locator('.page');
   await expect.poll(async () => { const r = (await score.boundingBox())!; return Math.round((r.height / r.width) * 100); }).toBe(141); // A4
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Draw' }).click(); // the app opens in Select mode
   const b = (await score.boundingBox())!;
   const at = (fx: number, fy: number) => ({ x: b.x + fx * b.width, y: b.y + fy * b.height });
   const a = at(0.184, 0.164), c = at(0.94, 0.252);

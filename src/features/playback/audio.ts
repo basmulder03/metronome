@@ -1,24 +1,71 @@
 import type { Beat, Timeline } from '../tempo-map/timeline';
 
-/** `gap`: seconds of silence between laps when looping (a practice loop). */
-export type ClickOpts = { subdivide: boolean; gap?: number };
+/**
+ * Which beats sound, and how strongly (a meter's beats are accent 2 = bar start, 1 = start of a group, 0 = subdivision):
+ * - `groups`: the bar start and the group starts, each in its own strength (12/8 as 1 2 2 2)
+ * - `all`: every beat, subdivisions soft (12/8 as 1 3 3 2 3 3 2 3 3 2 3 3)
+ * - `even`: the group starts, all equally strong (12/8 as 1 1 1 1)
+ * - `bar`: only the bar start
+ */
+export type Pattern = 'groups' | 'all' | 'even' | 'bar';
+export type Kit = 'click' | 'wood' | 'beep' | 'tick';
+/** What the clicks sound like. */
+export type SoundOpts = { kit?: Kit; /** 0..1 */ volume?: number };
+/** `gap`: seconds of silence between laps when looping (a practice loop). `subdivide` is the older spelling of pattern `all`. */
+export type ClickOpts = { subdivide: boolean; gap?: number; pattern?: Pattern } & SoundOpts;
 
-const PITCH = [800, 1100, 1600];
-const GAIN = [0.3, 0.7, 1];
+type Accent = 0 | 1 | 2;
+const patternOf = (o: ClickOpts): Pattern => o.pattern ?? (o.subdivide ? 'all' : 'groups');
 
-/** One click: a 30 ms decaying sine. Shared by live playback and offline render so both sound identical. */
-function click(ctx: BaseAudioContext, at: number, accent: 0 | 1 | 2) {
-  const osc = ctx.createOscillator();
-  const g = ctx.createGain();
-  osc.frequency.value = PITCH[accent];
-  g.gain.setValueAtTime(GAIN[accent], at);
-  g.gain.exponentialRampToValueAtTime(0.001, at + 0.03);
-  osc.connect(g).connect(ctx.destination);
-  osc.start(at);
-  osc.stop(at + 0.04);
+/** The strength a beat sounds with under the chosen pattern, or null when it stays silent. */
+export function levelOf(accent: Accent, o: ClickOpts): Accent | null {
+  switch (patternOf(o)) {
+    case 'all': return accent;
+    case 'even': return accent > 0 ? 2 : null;
+    case 'bar': return accent === 2 ? 2 : null;
+    default: return accent > 0 ? accent : null;
+  }
 }
 
-const audible = (accent: number, o: ClickOpts) => o.subdivide || accent > 0;
+type KitDef = { wave: OscillatorType | 'noise'; pitch: [number, number, number]; seconds: number; /** pitch falls to this fraction */ drop?: number };
+const KITS: Record<Kit, KitDef> = {
+  click: { wave: 'sine', pitch: [800, 1100, 1600], seconds: 0.03 },
+  wood: { wave: 'triangle', pitch: [650, 900, 1250], seconds: 0.06, drop: 0.55 },
+  beep: { wave: 'sine', pitch: [440, 660, 880], seconds: 0.09 },
+  tick: { wave: 'noise', pitch: [2500, 4500, 7000], seconds: 0.04 },
+};
+export const KIT_NAMES: Record<Kit, string> = { click: 'Click', wood: 'Wood block', beep: 'Beep', tick: 'Tick' };
+const GAIN = [0.3, 0.7, 1];
+
+/** One click. Shared by live playback and offline render so both sound identical. */
+function click(ctx: BaseAudioContext, at: number, accent: Accent, sound: SoundOpts = {}) {
+  const kit = KITS[sound.kit ?? 'click'];
+  const peak = GAIN[accent] * Math.min(1, Math.max(0, sound.volume ?? 1));
+  if (peak <= 0) return;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(peak, at);
+  g.gain.exponentialRampToValueAtTime(0.001, at + kit.seconds);
+  if (kit.wave === 'noise') {
+    const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * kit.seconds), ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const hp = ctx.createBiquadFilter(); // the pitch of a noise click is where its high-pass sits
+    hp.type = 'highpass';
+    hp.frequency.value = kit.pitch[accent];
+    src.connect(hp).connect(g).connect(ctx.destination);
+    src.start(at);
+    return;
+  }
+  const osc = ctx.createOscillator();
+  osc.type = kit.wave;
+  osc.frequency.setValueAtTime(kit.pitch[accent], at);
+  if (kit.drop) osc.frequency.exponentialRampToValueAtTime(kit.pitch[accent] * kit.drop, at + kit.seconds);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + kit.seconds + 0.01);
+}
 
 /**
  * Beat range [i0, iEnd) for playing measures from..to (written positions) in playing order.
@@ -34,14 +81,24 @@ export function beatRange(tl: Timeline, from: number, to: number, endStep?: numb
   return [i0, iEnd];
 }
 
-/** Written measure sounding at `t` seconds (binary search over steps). */
-export function measureAtTime(tl: Timeline, t: number): number {
+const stepAt = (tl: Timeline, t: number): number => {
   let lo = 0, hi = tl.steps.length - 1;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
     if (tl.steps[mid].time <= t) lo = mid; else hi = mid - 1;
   }
-  return tl.steps[lo]?.measure ?? 0;
+  return lo;
+};
+
+/** Written measure sounding at `t` seconds (binary search over steps). */
+export const measureAtTime = (tl: Timeline, t: number): number => tl.steps[stepAt(tl, t)]?.measure ?? 0;
+
+/** Where `t` seconds is on the written page: the measure plus how far through it (0 up to 1), for a progress bar. */
+export function positionAt(tl: Timeline, t: number): number {
+  const k = stepAt(tl, t);
+  const end = tl.steps[k + 1]?.time ?? tl.duration;
+  const from = tl.steps[k]?.time ?? 0;
+  return (tl.steps[k]?.measure ?? 0) + (end > from ? Math.min(1, Math.max(0, (t - from) / (end - from))) : 0);
 }
 
 export class Player {
@@ -52,6 +109,8 @@ export class Player {
   private beatTimers = new Set<number>();
   /** Called each frame with the current measure index. */
   onMeasure: (m: number) => void = () => {};
+  /** Called each frame with the measure plus how far through it (4.5 = halfway through the fifth box), or -1 while resting. */
+  onProgress: (position: number) => void = () => {};
   onStop: () => void = () => {};
   /** Called at the moment each beat sounds (0 = off-beat, 1 = beat, 2 = start of the bar), audible or not. */
   onBeat: (accent: 0 | 1 | 2) => void = () => {};
@@ -76,7 +135,7 @@ export class Player {
     const lapLength = span + (loop ? Math.max(0, opts.gap ?? 0) : 0); // one lap: the clicks, then the rest
     const lead = pre.length ? -pre[0].time : 0;
     const origin = ctx.currentTime + 0.1 + lead;
-    for (const b of pre) if (b.accent) click(ctx, origin + b.time, b.accent); // count-in clicks group starts only
+    for (const b of pre) if (b.accent) click(ctx, origin + b.time, b.accent, opts); // count-in clicks group starts only
     let i = i0, lap = 0;
     this.playing = true;
 
@@ -85,8 +144,9 @@ export class Player {
       while (true) {
         const when = origin + lap * lapLength + (tl.beats[i].time - t0);
         if (when > ctx.currentTime + 0.2) return;
-        if (audible(tl.beats[i].accent, opts)) click(ctx, when, tl.beats[i].accent);
         const accent = tl.beats[i].accent;
+        const level = levelOf(accent, opts);
+        if (level !== null) click(ctx, when, level, opts);
         const id = window.setTimeout(() => { this.beatTimers.delete(id); this.onBeat(accent); }, Math.max(0, (when - ctx.currentTime) * 1000));
         this.beatTimers.add(id);
         if (++i >= iEnd) {
@@ -107,6 +167,7 @@ export class Player {
       // looping wraps round; a single run stays on its last measure until it stops, instead of flashing back to the first
       const into = loop ? elapsed % lapLength : Math.min(elapsed, span - 1e-6);
       this.onMeasure(into >= span ? -1 : measureAtTime(tl, t0 + into)); // -1: resting between laps
+      this.onProgress(into >= span ? -1 : positionAt(tl, t0 + into));
       this.raf = requestAnimationFrame(frame);
     };
     frame();
@@ -129,7 +190,7 @@ export class Player {
 export const SAMPLE_RATE = 44100;
 /** A click at `t` seconds from the start of the file. */
 export type ClickEvent = { t: number; accent: 0 | 1 | 2 };
-export type Job = { events: ClickEvent[]; seconds: number };
+export type Job = { events: ClickEvent[]; seconds: number; sound?: SoundOpts };
 
 const TAIL_SECONDS = 0.5; // silence after the last click so the file does not cut off
 const CLICK_RING = 0.05; // a click rings a little past its start; that part is carried into the next chunk
@@ -142,9 +203,9 @@ export function clickEvents(tl: Timeline, from: number, to: number, opts: ClickO
   const lead = pre.length ? -pre[0].time : 0;
   const events: ClickEvent[] = [
     ...pre.filter((b) => b.accent).map((b) => ({ t: lead + b.time, accent: b.accent })),
-    ...tl.beats.slice(i0, iEnd).filter((b) => audible(b.accent, opts)).map((b) => ({ t: lead + b.time - t0, accent: b.accent })),
+    ...tl.beats.slice(i0, iEnd).flatMap((b) => { const accent = levelOf(b.accent, opts); return accent === null ? [] : [{ t: lead + b.time - t0, accent }]; }),
   ];
-  return { events, seconds: lead + tEnd - t0 + TAIL_SECONDS };
+  return { events, seconds: lead + tEnd - t0 + TAIL_SECONDS, sound: { kit: opts.kit, volume: opts.volume } };
 }
 
 /** Put jobs one after another with silence between them (a playlist is just shifted clicks). */
@@ -155,14 +216,14 @@ export function joinJobs(jobs: Job[], gapSeconds: number): Job {
     for (const e of j.events) events.push({ t: e.t + offset, accent: e.accent });
     offset += j.seconds + (k < jobs.length - 1 ? gapSeconds : 0);
   });
-  return { events, seconds: offset };
+  return { events, seconds: offset, sound: jobs[0]?.sound };
 }
 
-type Render = (length: number, clicks: { at: number; accent: 0 | 1 | 2 }[], sampleRate: number) => Promise<Float32Array>;
+type Render = (length: number, clicks: { at: number; accent: 0 | 1 | 2 }[], sampleRate: number, sound?: SoundOpts) => Promise<Float32Array>;
 
-const offlineRender: Render = async (length, clicks, sampleRate) => {
+const offlineRender: Render = async (length, clicks, sampleRate, sound) => {
   const ctx = new OfflineAudioContext(1, length, sampleRate);
-  for (const c of clicks) click(ctx, c.at, c.accent);
+  for (const c of clicks) click(ctx, c.at, c.accent, sound);
   return (await ctx.startRendering()).getChannelData(0);
 };
 
@@ -194,7 +255,7 @@ export async function* renderChunks(
       const e = events[next++];
       clicks.push({ at: e.t - start / sampleRate, accent: e.accent });
     }
-    const out = await render(len + tail, clicks, sampleRate);
+    const out = await render(len + tail, clicks, sampleRate, job.sound);
     for (let i = 0; i < carry.length && i < out.length; i++) out[i] += carry[i];
     carry = out.slice(len);
     yield toInt16(out.subarray(0, len));

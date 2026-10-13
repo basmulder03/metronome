@@ -2,6 +2,8 @@
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { openPdf } from './features/score/pdf';
   import { pulseIcon, resetIcon } from './features/playback/favicon';
+  import PlayBar from './features/playback/PlayBar.svelte';
+  import { clickOpts } from './features/playback/sound.svelte';
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn, firstStepOf, stopStepFrom } from './features/tempo-map/timeline';
   import { type Part, partIndexOf, partsOf } from './features/structure/parts';
@@ -22,7 +24,7 @@
   import PdfView from './features/score/PdfView.svelte';
   import { hasShareHash, openShare } from './features/share/link';
   import type { Shared } from './features/share/codec';
-  import { app, selectedRange, timeline } from './shared/store.svelte';
+  import { app, choose, selectedRange, timeline } from './shared/store.svelte';
   import BulkEditor from './features/score/BulkEditor.svelte';
   import { emptyPiece } from './shared/types';
   import AdminPanel from './features/admin/AdminPanel.svelte';
@@ -53,11 +55,13 @@
   let preview = $state(false); // show the no-PDF view that a share link opens with
   let pageNum = $state(0);
   let zoom = $state(1);
-  let mode = $state<'draw' | 'split' | 'select'>('draw');
-  let subdivide = $state(false);
+  let mode = $state<'draw' | 'split' | 'select'>('select'); // opens ready to pick and edit; Draw is one tap away
   // new and dragged boxes line up with their neighbours; remembered between visits
   let snap = $state((() => { try { return localStorage.getItem('metronome.snap') !== 'off'; } catch { return true; } })());
   $effect(() => { try { localStorage.setItem('metronome.snap', snap ? 'on' : 'off'); } catch { /* not remembered */ } });
+  // a pen was seen (or chosen in Options): it draws and moves boxes, and fingers scroll; remembered between visits
+  let stylus = $state((() => { try { return localStorage.getItem('metronome.stylus') === 'on'; } catch { return false; } })());
+  $effect(() => { try { localStorage.setItem('metronome.stylus', stylus ? 'on' : 'off'); } catch { /* not remembered */ } });
   let playing = $state(false);
   let busy = $state(false);
   let progress = $state(0);
@@ -163,12 +167,14 @@
   }
 
   const player = new Player();
+  let position = $state(0); // where the playback bar shows the click: measure + how far through it
   player.onBeat = pulseIcon;
   player.onMeasure = (m) => {
     app.playing = m;
     const pg = app.piece.measures[m]?.page;
     if (pg !== undefined) pageNum = pg;
   };
+  player.onProgress = (v) => { if (v >= 0) position = v; };
   player.onStop = () => { playing = false; app.playing = -1; resetIcon(); };
 
   async function open(e: Event) {
@@ -193,7 +199,7 @@
     if (!app.piece.measures.length) return;
     const tl = timeline();
     const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to, endStep)[0], app.piece.countIn ?? 0);
-    playing = await player.play(tl, from, to, loop, { subdivide, gap }, pre, endStep);
+    playing = await player.play(tl, from, to, loop, clickOpts({ gap }), pre, endStep);
     if (playing && endStep !== undefined) void announceStop(tl, endStep);
   }
 
@@ -205,6 +211,14 @@
     app.selected = next.measure;
     if (doc) pageNum = app.piece.measures[next.measure].page;
     status = `End of “${tl.parts[tl.partOfStep[endStep]].name}”. Press Space or Play to continue with “${tl.parts[tl.partOfStep[endStep + 1]].name}”.`;
+  }
+
+  /** The playback bar was dragged (or its keys used): the picked measure follows, and playing restarts there once released. */
+  function seek(measure: number, final: boolean) {
+    choose(measure);
+    position = measure;
+    if (doc) pageNum = app.piece.measures[measure]?.page ?? pageNum;
+    if (final && playing) void playFromSelected();
   }
 
   /** Play from the selected measure to the end, or to the end of its part when the sheet is set to stop after each part (or the part is flagged). */
@@ -222,7 +236,7 @@
     // one part: from its first measure to where the played order leaves it
     const end = part ? stopStepFrom(tl, firstStepOf(tl, part.start), 'stop') : undefined;
     const [from, to] = part ? [part.start, part.end] : [0, last];
-    const job = clickEvents(tl, from, to, { subdivide }, countIn(app.piece, tl, beatRange(tl, from, to, end)[0], app.piece.countIn ?? 0), end);
+    const job = clickEvents(tl, from, to, clickOpts(), countIn(app.piece, tl, beatRange(tl, from, to, end)[0], app.piece.countIn ?? 0), end);
     const warning = longExportWarning(job.seconds);
     if (warning && !confirm(warning)) return;
     busy = true;
@@ -446,17 +460,12 @@
     ]} />
   </span>
   <span class="grp">
-    {#if playing}
-      <Button variant="primary" onclick={() => player.stop()}>Stop</Button>
-    {:else}
-      <Button variant="primary" onclick={playFromSelected} aria-label={app.selected >= 0 ? `Play from ${firstBar(barLabels(app.piece.measures)[app.selected] ?? String(app.selected + 1))}` : 'Play'}>Play</Button>
-    {/if}
     <Button disabled={busy} onclick={() => void exportWav()}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export WAV'}</Button>
   </span>
   <details class="opts end">
     <summary>Options</summary>
     <div class="panel">
-      <label class="check"><input type="checkbox" bind:checked={subdivide} /> Click on subdivisions</label>
+      <label class="check"><input type="checkbox" bind:checked={stylus} /> Pen mode: the pen draws and moves boxes, fingers scroll and tap (switches on by itself when a pen is used)</label>
       <label class="check"><input type="checkbox" bind:checked={snap} /> Line boxes up with their neighbours (hold Alt to skip)</label>
       <label>Count-in
         <select bind:value={app.piece.countIn}>
@@ -500,11 +509,10 @@
 <ShortcutsDialog bind:this={shortcutsDialog} />
 {#if found}{#key found}<ReadMarksDialog bind:this={readDialog} suggestions={found} onapply={addFound} oncancel={() => (found = null)} />{/key}{/if}
 {#if auth.user?.role === 'admin'}<AdminPanel bind:this={adminPanel} />{/if}
-<PlaylistPanel bind:this={playlistPanel} {subdivide} />
+<PlaylistPanel bind:this={playlistPanel} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onreplace={async (id, blob) => { if (id === lib.currentId) { doc = await load(blob); pageNum = 0; } }} />
 {#if current}
   <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
-    {#if app.selected >= 0}<Button size="sm" onclick={() => run({ type: 'tidy' })} title="Same top and height for the whole row, bars connected (T)">Tidy row</Button>{/if}
     <Button size="sm" disabled={!doc} onclick={() => (preview = !preview)} aria-pressed={preview} title="Show the piece the way someone sees it from a share link, without your PDF">{preview ? 'Back to score' : 'See share view'}</Button>
     <span class="saved" aria-live="polite">{savedText}</span>
     {#if parts.length}
@@ -519,6 +527,18 @@
   </div>
 {/if}
 
+{#if current}
+  <!-- always the same height and never wraps, so picking a measure does not move the page under your finger -->
+  <div class="tools" role="toolbar" aria-label="Editing">
+    <Button size="sm" aria-label="Undo" title="Undo (Ctrl+Z)" onclick={() => run({ type: 'undo' })}>↶ Undo</Button>
+    <Button size="sm" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" onclick={() => run({ type: 'redo' })}>↷ Redo</Button>
+    <Button size="sm" aria-label="Previous measure" disabled={app.selected < 0} onclick={() => run({ type: 'select', delta: -1 })}>‹ Measure</Button>
+    <Button size="sm" aria-label="Next measure" disabled={app.piece.measures.length === 0} onclick={() => run({ type: 'select', delta: 1 })}>Measure ›</Button>
+    <Button size="sm" disabled={app.selected < 0} onclick={() => run({ type: 'merge' })} title="Join this box with the next one (M)">Merge with next</Button>
+    <Button size="sm" disabled={app.selected < 0} onclick={() => run({ type: 'tidy' })} title="Same top and height for the whole row, bars connected (T)">Tidy row</Button>
+  </div>
+{/if}
+
 {#if status}
   <div class="status" role="status">
     <span>{status}</span>
@@ -529,7 +549,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
   <div class="score" role="region" aria-label="Score" tabindex="0">
     {#if (doc && !preview) || app.piece.measures.length === 0}
-      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} {snap} onstep={() => edits.checkpoint()} />
+      <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} {snap} {stylus} onpen={() => (stylus = true)} onstep={() => edits.checkpoint()} />
     {:else}
       <MeasureStrip />
     {/if}
@@ -540,6 +560,7 @@
       <Inspector onplay={play} onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} /><StructureEditor />
     {/if}</Sheet>
 </main>
+<PlayBar {playing} {position} onplay={() => void playFromSelected()} onstop={() => player.stop()} onseek={seek} />
 </div>
 
 <style>
@@ -552,20 +573,22 @@
   .acct .mut { margin: 0; font-size: var(--font-sm); overflow-wrap: anywhere; }
   .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
-  .titlebar { display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); }
+  .titlebar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); }
   .titlebar strong { overflow-wrap: anywhere; }
+  .tools { display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; }
+  .tools :global(button) { flex: none; }
   .saved { color: var(--fg-muted); font-size: var(--font-sm); }
   .titlebar .part { flex-direction: row; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--fg); font-size: var(--font-md); }
   .status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; padding: 6px var(--space-3); font-size: 13px; background: var(--surface); color: var(--fg-muted); }
   dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); max-width: min(420px, calc(100vw - 2 * var(--space-4))); }
   dialog::backdrop { background: var(--scrim); }
-  .shell { display: flex; flex-direction: column; }
+  .shell { display: flex; flex-direction: column; padding-bottom: var(--bar-h); box-sizing: border-box; } /* room for the playback bar */
   main { display: grid; grid-template-columns: 1fr; }
   .score { overflow: auto; padding: var(--space-2); padding-bottom: 45vh; background: var(--surface); } /* room for the phone bottom sheet */
   @media (min-width: 900px) {
     header { position: sticky; top: 0; }
     .shell { height: 100vh; }
-    main { flex: 1; min-height: 0; }
+    main { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) 360px; } /* the score, and the settings panel beside it */
     .score { overflow: auto; }
   }
 </style>

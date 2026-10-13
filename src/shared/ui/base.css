@@ -21,3 +21,6 @@ label { display: flex; flex-direction: column; gap: var(--space-1); font-size: v
 .row input:not([type='checkbox']), .row select { width: 100%; max-width: 130px; }
 .mut { color: var(--fg-muted); margin: 0 0 var(--space-2); }
 .err { color: var(--danger); margin: 0; font-size: 13px; }
+
+/* no double-tap zoom delay on controls */
+button, summary, label, select, input { touch-action: manipulation; }

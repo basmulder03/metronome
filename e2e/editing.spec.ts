@@ -76,7 +76,7 @@ test.describe('keyboard', () => {
     await expect(help).toBeHidden();
 
     await page.keyboard.press('Escape'); // deselect
-    await expect(page.getByRole('complementary', { name: 'Measure settings' })).toHaveCount(0); // the settings close with the selection
+    await expect(page.getByRole('heading', { name: /^Measures? \d/ })).toHaveCount(0); // the settings close with the selection (a wide screen keeps an empty panel)
   });
 
   test('Space plays from the selected measure and stops again', async ({ page }) => {
@@ -230,9 +230,11 @@ test('on a phone, the box you pick is kept above the inspector sheet', async ({ 
   test.skip(page.viewportSize()!.width >= 900, 'phone layout only');
   await detected(page);
   await page.locator('.box').nth(6).click(); // a box in the lower half of the page
-  const box = (await page.locator('.box.sel').boundingBox())!;
-  const sheet = (await page.locator('aside').boundingBox())!;
-  expect(box.y + box.height).toBeLessThanOrEqual(sheet.y + 1); // not hidden behind the sheet
+  await expect.poll(async () => { // the page scrolls once the settings are drawn
+    const box = (await page.locator('.box.sel').boundingBox())!;
+    const sheet = (await page.locator('aside').boundingBox())!;
+    return sheet.y + 1 - (box.y + box.height);
+  }).toBeGreaterThanOrEqual(0); // not hidden behind the sheet
 });
 
 async function exportSeconds(page: Page) {
@@ -336,6 +338,7 @@ test.describe('saving', () => {
 test.describe('outlining', () => {
   /** Draw a box by dragging, in fractions of the page. The synthetic page is blank where we draw, so nothing is detected. */
   async function drawBox(page: Page, x0: number, y0: number, x1: number, y1: number) {
+    await page.getByRole('button', { name: 'Draw' }).click(); // the app opens in Select mode
     const b = (await page.locator('.page').boundingBox())!;
     await page.mouse.move(b.x + b.width * x0, b.y + b.height * y0);
     await page.mouse.down();
@@ -368,7 +371,7 @@ test.describe('outlining', () => {
   test('only a box in the same row takes its height, and only a close edge is pulled onto a barline', async ({ page }) => {
     await blankPage(page);
     await drawBox(page, 0.10, 0.20, 0.30, 0.30);
-    await drawBox(page, 0.12, 0.36, 0.45, 0.46); // a different row (kept within the visible window)
+    await drawBox(page, 0.12, 0.33, 0.45, 0.43); // a different row (kept within the visible window)
     await drawBox(page, 0.60, 0.205, 0.80, 0.29); // the same row but 0.3 away from the barline
     // boxes are kept in reading order: the far one is second in the first row, the lower row comes last
     const [far, low] = [await rect(page, 1), await rect(page, 2)];

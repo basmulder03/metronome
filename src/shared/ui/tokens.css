@@ -43,6 +43,7 @@
   --space-4: 16px;
   --radius: 8px;
   --tap: 40px; /* minimum touch target */
+  --bar-h: 60px; /* the playback bar at the bottom of the screen */
   --font-sm: 12px;
   --font-md: 15px;
   --font: system-ui, sans-serif;
