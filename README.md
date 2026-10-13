@@ -121,7 +121,8 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
 `https://host/#s=k3m9x2ab`. The markup is stored on the server under that code, so the link stays short however long the piece
 is; sharing the same thing again gives the same link. Anyone with the link can read the markup (and nothing else: no PDF ever
 reaches the server), so treat a code like a key. Opening a piece link signed out gives a read-only player (attach your own PDF);
-signing in offers to import it, and a playlist link imports the playlist and its pieces. Creating a link needs an account.
+signing in offers to import it, and a playlist link imports the playlist and its pieces. Creating a link needs an account. *Library > My links* lists what you shared, copies a link again and **withdraws** it (it stops
+working at once), and sets how long new links stay valid (until withdrawn, 7 or 30 days, a year; an expired link answers like an unknown one).
 Old long `#share=` links still open, and if the server cannot be reached, sharing falls back to such a link.
 
 ### Accounts and administration
@@ -206,8 +207,7 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
   guess, and it cannot read music-font time signatures). Everything is a suggestion you review first, and the end tempo of a rit./accel. is always a guess.
   Barline detection is classical image processing and will miss on dense, skewed or handwritten scores.
 - **Repeat signs, voltas and fermatas are not read from the page**; mark them in the editor.
-- **Share links cannot be withdrawn yet.** A code stays valid (it is deleted with its owner's account), at most 200 per account.
-  A practice loop is not saved with the piece.
+- **Share links:** at most 200 per account; a code is deleted with its owner's account, and expired links are only hidden, not purged.
 - **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.
 - **Sync pulls everything each time**, which is fine for a personal library, not for thousands of pieces.
 - **Count-in** uses the first measure's meter and tempo; fermatas apply on every pass of a repeat.

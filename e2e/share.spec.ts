@@ -155,3 +155,34 @@ test('a playlist is shared as one short link and imported with its pieces', asyn
   await expect(list.getByRole('listitem')).toHaveCount(2);
   await ctx.close();
 });
+
+test('My links lists what was shared and withdrawing a link makes it stop working', async ({ page, browser }) => {
+  const url = await shareLink(page);
+  const dlg = page.getByRole('dialog', { name: 'Library' });
+  await dlg.getByRole('button', { name: 'My links' }).click();
+  const mine = page.getByRole('dialog', { name: 'My links' });
+  await expect(mine.getByRole('listitem')).toHaveCount(1);
+  await expect(mine).toContainText(url.split('#')[1]);
+  await expect(mine).toContainText('until withdrawn');
+
+  const g = await (await browser.newContext()).newPage();
+  await g.goto(url);
+  await expect(g.getByText('shared with you · 8 measures')).toBeVisible();
+
+  page.once('dialog', (d) => void d.accept());
+  await mine.getByRole('button', { name: 'Withdraw' }).click();
+  await expect(mine.getByRole('listitem')).toHaveCount(0);
+  const g2 = await (await browser.newContext()).newPage();
+  await g2.goto(url);
+  await expect(g2.getByText('That share link is not valid.')).toBeVisible();
+});
+
+test('a link with a lifetime says when it ends', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('metronome.linkDays', '7'));
+  const url = await shareLink(page);
+  expect(url).toMatch(/#s=/);
+  await page.getByRole('dialog', { name: 'Library' }).getByRole('button', { name: 'My links' }).click();
+  await expect(page.getByRole('dialog', { name: 'My links' })).toContainText('until ');
+  await expect(page.getByRole('dialog', { name: 'My links' })).not.toContainText('until withdrawn');
+});

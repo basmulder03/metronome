@@ -10,9 +10,9 @@ export const hasShareHash = (hash: string) => hash.startsWith('#s=') || hash.sta
  * Put an encoded share on the server and give back a short link. Without a connection it falls back to the long link,
  * which works on its own, so sharing never fails just because the server is out of reach.
  */
-export async function shortLink(kind: 'piece' | 'playlist', title: string, data: string): Promise<string> {
+export async function shortLink(kind: 'piece' | 'playlist', title: string, data: string, days = linkDays()): Promise<string> {
   try {
-    const { code } = await pb.send<{ code: string }>('/api/metronome/share', { method: 'POST', body: { kind, title, data } });
+    const { code } = await pb.send<{ code: string }>('/api/metronome/share', { method: 'POST', body: { kind, title, data, days } });
     return `${base()}#s=${code}`;
   } catch {
     return `${base()}#share=${data}`;
@@ -31,3 +31,12 @@ export async function openShare(hash: string): Promise<Shared | null> {
     return null;
   }
 }
+
+/** How long new links last, in days (0 = until withdrawn). Remembered on this device. */
+export const linkDays = () => { try { return Math.max(0, Math.min(365, +(localStorage.getItem('metronome.linkDays') ?? 0) || 0)); } catch { return 0; } };
+export const setLinkDays = (days: number) => { try { localStorage.setItem('metronome.linkDays', String(days)); } catch { /* not remembered */ } };
+
+export type MyShare = { code: string; kind: 'piece' | 'playlist'; title: string; created: string; expires: number };
+export const myShares = async () => (await pb.send<{ shares: MyShare[] }>('/api/metronome/shares', {})).shares;
+export const withdrawShare = (code: string) => pb.send(`/api/metronome/share/${encodeURIComponent(code)}`, { method: 'DELETE' });
+export const linkFor = (code: string) => `${base()}#s=${code}`;

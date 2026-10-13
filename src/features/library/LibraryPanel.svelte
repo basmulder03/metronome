@@ -2,12 +2,14 @@
   import Button from '../../shared/ui/Button.svelte';
   import { encodeShare } from '../share/codec';
   import { shortLink } from '../share/link';
+  import MyLinks from '../share/MyLinks.svelte';
   import { exportBackup, parseBackup } from './backup';
   import { pl, touch } from '../playlist/playlist.svelte';
   import { attachPdf, create, duplicate, lib, rename, remove } from './library.svelte';
 
   let { onopen, onreplace }: { onopen: (id: string) => void; onreplace: (id: string, pdf: Blob) => void } = $props();
   let dialog: HTMLDialogElement;
+  let myLinks: MyLinks;
 
   export function show() { dialog.showModal(); }
 
@@ -78,6 +80,7 @@
   <div class="head">
     <h3>Library</h3>
     <div class="acts">
+      <Button size="sm" onclick={() => void myLinks.show()} title="See, copy and withdraw the links you shared">My links</Button>
       <Button size="sm" onclick={saveBackup} disabled={!lib.entries.length} title="Save the markup of every piece as a file (no PDFs) to import on another server">Export all</Button>
       <label class="swap" title="Add the pieces from a backup file">Import file<input type="file" accept="application/json,.json" hidden onchange={(ev) => void loadBackup(ev.currentTarget)} /></label>
       <Button size="sm" onclick={() => dialog.close()}>Close</Button>
@@ -124,13 +127,14 @@
           <div class="link">
             <input readonly aria-label="Share link" value={link.url} onfocus={(ev) => ev.currentTarget.select()} />
             <Button size="sm" onclick={() => void copy()}>{copied ? 'Copied' : 'Copy'}</Button>
-            <p class="mut">Contains the markup only, not the PDF. Whoever opens it attaches their own copy.</p>
+            <p class="mut">Contains the markup only, not the PDF. Whoever opens it attaches their own copy. Withdraw or time-limit links under My links.</p>
           </div>
         {/if}
       </li>
     {/each}
   </ul>
 </dialog>
+<MyLinks bind:this={myLinks} />
 
 <style>
   dialog { width: min(560px, calc(100vw - 2 * var(--space-4))); max-height: 80vh; overflow: auto; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); }

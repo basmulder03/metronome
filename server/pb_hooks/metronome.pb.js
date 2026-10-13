@@ -79,18 +79,22 @@ routerAdd('POST', '/api/metronome/share', (e) => {
   const kind = String(body.kind || '');
   const data = String(body.data || '');
   const title = String(body.title || '').slice(0, 200);
+  const days = Math.min(365, Math.max(0, parseInt(body.days, 10) || 0)); // 0: the link never expires
   if (kind !== 'piece' && kind !== 'playlist') throw new BadRequestError('Unknown kind of share.');
   // the payload is the client's compressed, URL-safe encoding; anything else is not a share
   if (!/^[A-Za-z0-9_-]{1,600000}$/.test(data)) throw new BadRequestError('That is not a valid share.');
   const owner = e.auth;
   if (owner.getBool('blocked')) throw new ForbiddenError('This account has been blocked.');
+  const expires = days ? Math.floor(Date.now() / 1000) + days * 86400 : 0;
 
   const hash = $security.sha256(`${kind}.${data}`);
-  try { // sharing the same thing again gives the same link
+  try { // sharing the same thing again gives the same link (with the new lifetime)
     const same = $app.findFirstRecordByFilter('shares', 'owner = {:o} && hash = {:h}', { o: owner.id, h: hash });
+    same.set('expires', expires);
+    $app.save(same);
     return e.json(200, { code: same.getString('code') });
   } catch (_) { /* not shared before */ }
-  if ($app.countRecords('shares', $dbx.hashExp({ owner: owner.id })) >= 200) throw new BadRequestError('You have reached the limit of share links.'); // (handlers run in their own scope: no shared top-level constants)
+  if ($app.countRecords('shares', $dbx.hashExp({ owner: owner.id })) >= 200) throw new BadRequestError('You have reached the limit of share links. Remove some under "My links".'); // (handlers run in their own scope: no shared top-level constants)
 
   const record = new Record($app.findCollectionByNameOrId('shares'));
   record.set('code', $security.randomStringWithAlphabet(8, 'abcdefghjkmnpqrstuvwxyz23456789'));
@@ -99,6 +103,7 @@ routerAdd('POST', '/api/metronome/share', (e) => {
   record.set('title', title);
   record.set('data', data);
   record.set('hash', hash);
+  record.set('expires', expires);
   $app.save(record);
   return e.json(200, { code: record.getString('code') });
 }, $apis.requireAuth('users'));
@@ -106,8 +111,25 @@ routerAdd('POST', '/api/metronome/share', (e) => {
 routerAdd('GET', '/api/metronome/share/{code}', (e) => {
   let record;
   try { record = $app.findFirstRecordByFilter('shares', 'code = {:c}', { c: e.request.pathValue('code') }); } catch (_) { throw new NotFoundError('This share link is not valid.'); }
+  const expires = record.getInt('expires');
+  if (expires && expires < Math.floor(Date.now() / 1000)) throw new NotFoundError('This share link is not valid.'); // expired: same answer as unknown
   return e.json(200, { kind: record.getString('kind'), title: record.getString('title'), data: record.getString('data') });
 });
+
+// the signed-in user's own links (no payloads), to copy or withdraw them
+routerAdd('GET', '/api/metronome/shares', (e) => {
+  const list = $app.findRecordsByFilter('shares', 'owner = {:o}', '-created', 200, 0, { o: e.auth.id }).map((r) => ({
+    code: r.getString('code'), kind: r.getString('kind'), title: r.getString('title'), created: r.getString('created'), expires: r.getInt('expires'),
+  }));
+  return e.json(200, { shares: list });
+}, $apis.requireAuth('users'));
+
+routerAdd('DELETE', '/api/metronome/share/{code}', (e) => {
+  let record;
+  try { record = $app.findFirstRecordByFilter('shares', 'code = {:c} && owner = {:o}', { c: e.request.pathValue('code'), o: e.auth.id }); } catch (_) { throw new NotFoundError('Unknown share link.'); }
+  $app.delete(record);
+  return e.json(200, { ok: true });
+}, $apis.requireAuth('users'));
 
 // ---------- administration (every route re-checks the role on the server) ----------
 
