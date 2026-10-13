@@ -18,6 +18,8 @@ export type Suggestion = { id: string; text: string; low?: boolean } & (
   | { kind: 'merge'; measure: number } // this box and the one before it are one bar: a stem was taken for a barline
   | { kind: 'split'; measure: number } // this box holds two bars: a barline was missed
   | { kind: 'note'; measure: number }
+  // from the page image (see repeats.ts)
+  | { kind: 'repeat'; measure: number; side: 'start' | 'end' }
 );
 
 const DENS = [1, 2, 4, 8, 16, 32];
@@ -227,6 +229,10 @@ export function applySuggestions(piece: Piece, chosen: Suggestion[]): { applied:
       const m = piece.measures[s.measure];
       if (!m || m.marks?.multirest) { skipped++; continue; }
       setMark(m, 'multirest', s.bars);
+    } else if (s.kind === 'repeat') {
+      const m = piece.measures[s.measure];
+      if (!m || (s.side === 'start' ? m.marks?.repeatStart : m.marks?.repeatEnd)) { skipped++; continue; }
+      if (s.side === 'start') setMark(m, 'repeatStart', true); else setMark(m, 'repeatEnd', 2);
     } else continue; // merge, split and note are handled below or are only information
     applied++;
   }

@@ -20,6 +20,7 @@
   import ReadMarksDialog from './features/score/ReadMarksDialog.svelte';
   import { applySuggestions, suggestFromText, type PageText, type Suggestion } from './features/score/readmarks';
   import { readPageText } from './features/score/textlayer';
+  import { suggestRepeats } from './features/score/repeats';
   import { ocrPages } from './features/score/ocr';
   import { barChecks } from './features/score/barnumbers';
   import PdfView from './features/score/PdfView.svelte';
@@ -397,18 +398,26 @@
   let ocrOffer = $state(false);
   let readDialog = $state<ReadMarksDialog>();
 
-  /** Look for tempo marks, time signatures and rit./accel. words in the PDF's own text; the user reviews them before anything changes. */
+  /** Repeat signs, read from the picture of each page (the text layer does not have them). */
+  async function repeatHints() {
+    if (!view) return [];
+    const maps = new Map<number, Awaited<ReturnType<NonNullable<typeof view>['bitmap']>>>();
+    for (const page of new Set(app.piece.measures.map((m) => m.page))) maps.set(page, await view.bitmap(1400, page));
+    return suggestRepeats(app.piece.measures, maps);
+  }
+
+  /** Look for tempo marks, time signatures and rit./accel. words in the PDF's own text, and repeat signs on the page; the user reviews them before anything changes. */
   async function readFromPdf() {
     if (!doc) return;
-    status = 'Reading text from the PDF…';
+    status = 'Reading the PDF…';
     const texts: PageText[] = [];
     for (let i = 0; i < doc.numPages; i++) if (app.piece.measures.some((m) => m.page === i)) texts.push(await readPageText(doc, i));
-    const s = suggestFromText(texts, app.piece);
+    const s = [...suggestFromText(texts, app.piece), ...(await repeatHints())];
     if (!s.length) {
       if (texts.every((t) => !t.items.length)) {
         ocrOffer = true;
         status = 'This PDF has no text layer (it looks like a scan). OCR can read tempo marks and rit./accel. words from it, but not time signatures.';
-      } else status = 'No tempo marks, time signatures or rit./accel. words found. Set them in the editor.';
+      } else status = 'No tempo marks, time signatures, rit./accel. words or repeat signs found. Set them in the editor.';
       return;
     }
     showFound(s);
@@ -428,7 +437,7 @@
     status = 'Loading the OCR engine (first time only)…';
     try {
       const { texts, signals } = await ocrPages(doc, app.piece.measures, (d, t) => (status = `Reading the page text… ${d}/${t}`));
-      const s = [...suggestFromText(texts, app.piece), ...barChecks(app.piece.measures, signals)];
+      const s = [...suggestFromText(texts, app.piece), ...barChecks(app.piece.measures, signals), ...(await repeatHints())];
       if (s.length) showFound(s);
       else status = 'OCR found no tempo marks, rit./accel. words or bar-number problems. Set them in the editor.';
     } catch {

@@ -11,7 +11,7 @@
   export function show() { dialog.showModal(); }
 
   const where = (s: Suggestion) => (s.kind === 'ramp' ? `Measures ${s.from + 1}–${s.to + 1}` : `Measure ${s.measure + 1}`);
-  const kind = (s: Suggestion) => ({ meter: 'Time signature', tempo: 'Tempo', ramp: 'Accel./rall.', multirest: 'Multi-measure rest', merge: 'False barline', split: 'Missed barline', note: 'Bar numbers' })[s.kind];
+  const kind = (s: Suggestion) => ({ meter: 'Time signature', tempo: 'Tempo', ramp: 'Accel./rall.', multirest: 'Multi-measure rest', repeat: 'Repeat sign', merge: 'False barline', split: 'Missed barline', note: 'Bar numbers' })[s.kind];
   const toggle = (id: string, on: boolean) => { const n = new Set(ticked); on ? n.add(id) : n.delete(id); ticked = n; };
   const chosen = $derived(suggestions.filter((s) => ticked.has(s.id)));
 </script>

@@ -210,7 +210,9 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
   time signatures, rit./accel. words) and OCR for scans (tempo marks, rit./accel. words, rests and bar numbers; OCR cannot read the note glyph in a tempo mark, so the beat unit is a
   guess, and it cannot read music-font time signatures). Everything is a suggestion you review first, and the end tempo of a rit./accel. is always a guess.
   Barline detection is classical image processing and will miss on dense, skewed or handwritten scores.
-- **Repeat signs, voltas and fermatas are not read from the page**; mark them in the editor.
+- **Repeat signs are read from the page picture** (a thick and a thin barline with two dots, found at the ends of the boxes and, for the
+  first box of a system, after the clef and key signature), as suggestions in *Read from PDF*. Voltas (ending brackets) and fermatas
+  are not read; mark them in the editor. Heavily skewed, hand-written or very dense scores may be missed.
 - **Share links:** at most 200 per account; a code is deleted with its owner's account, and expired links are only hidden, not purged.
 - **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.
 - **Sync pulls everything each time**, which is fine for a personal library, not for thousands of pieces.
