@@ -1,6 +1,7 @@
 import type { Beat, Timeline } from '../tempo-map/timeline';
 
-export type ClickOpts = { subdivide: boolean };
+/** `gap`: seconds of silence between laps when looping (a practice loop). */
+export type ClickOpts = { subdivide: boolean; gap?: number };
 
 const PITCH = [800, 1100, 1600];
 const GAIN = [0.3, 0.7, 1];
@@ -69,6 +70,7 @@ export class Player {
     const t0 = tl.beats[i0].time;
     const tEnd = iEnd < tl.beats.length ? tl.beats[iEnd].time : tl.duration;
     const span = tEnd - t0;
+    const lapLength = span + (loop ? Math.max(0, opts.gap ?? 0) : 0); // one lap: the clicks, then the rest
     const lead = pre.length ? -pre[0].time : 0;
     const origin = ctx.currentTime + 0.1 + lead;
     for (const b of pre) if (b.accent) click(ctx, origin + b.time, b.accent); // count-in clicks group starts only
@@ -78,7 +80,7 @@ export class Player {
     // Lookahead scheduler: a coarse JS timer schedules clicks slightly ahead on the sample-accurate audio clock.
     const pump = () => {
       while (true) {
-        const when = origin + lap * span + (tl.beats[i].time - t0);
+        const when = origin + lap * lapLength + (tl.beats[i].time - t0);
         if (when > ctx.currentTime + 0.2) return;
         if (audible(tl.beats[i].accent, opts)) click(ctx, when, tl.beats[i].accent);
         if (++i >= iEnd) {
@@ -97,7 +99,8 @@ export class Player {
     const frame = () => {
       const elapsed = Math.max(0, ctx.currentTime - origin);
       // looping wraps round; a single run stays on its last measure until it stops, instead of flashing back to the first
-      this.onMeasure(measureAtTime(tl, t0 + (loop ? elapsed % span : Math.min(elapsed, span - 1e-6))));
+      const into = loop ? elapsed % lapLength : Math.min(elapsed, span - 1e-6);
+      this.onMeasure(into >= span ? -1 : measureAtTime(tl, t0 + into)); // -1: resting between laps
       this.raf = requestAnimationFrame(frame);
     };
     frame();

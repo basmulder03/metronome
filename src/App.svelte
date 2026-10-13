@@ -186,11 +186,11 @@
     await openEntry(id, f);
   }
 
-  async function play(from: number, to: number, loop: boolean, endStep?: number) {
+  async function play(from: number, to: number, loop: boolean, endStep?: number, gap = 0) {
     if (!app.piece.measures.length) return;
     const tl = timeline();
     const pre = loop ? [] : countIn(app.piece, tl, beatRange(tl, from, to, endStep)[0], app.piece.countIn ?? 0);
-    playing = await player.play(tl, from, to, loop, { subdivide }, pre, endStep);
+    playing = await player.play(tl, from, to, loop, { subdivide, gap }, pre, endStep);
     if (playing && endStep !== undefined) void announceStop(tl, endStep);
   }
 
@@ -529,7 +529,7 @@
       <MeasureStrip />
     {/if}
   </div>
-  <Sheet hidden={!!doc && !preview && mode !== 'select'}><Inspector onplay={play} /><StructureEditor /></Sheet>
+  <Sheet hidden={!!doc && !preview && mode !== 'select'}><Inspector onplay={play} onpractice={(from, to, gap) => void play(from, to, true, undefined, gap)} /><StructureEditor /></Sheet>
 </main>
 </div>
 

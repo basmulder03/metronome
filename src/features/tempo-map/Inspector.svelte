@@ -8,7 +8,7 @@
   import CurveEditor from './CurveEditor.svelte';
   import { app } from '../../shared/store.svelte';
 
-  let { onplay }: { onplay: (from: number, to: number, loop: boolean) => void } = $props();
+  let { onplay, onpractice }: { onplay: (from: number, to: number, loop: boolean) => void; onpractice: (from: number, to: number, gap: number) => void } = $props();
 
   const UNITS = [
     { label: '♩ quarter', den: 4, dotted: false },
@@ -62,6 +62,10 @@
     const r: Ramp = { from: i, to: Math.min(i + 3, maxRampEnd(p, i)), startBpm: bpm, endBpm: Math.round(bpm * factor), curve: [0.42, 0, 0.58, 1] };
     p.ramps.push(r);
   }
+  // practice loop: from the selected measure to `practiceTo`, with a rest before it comes round again
+  let practiceTo = $state(0);
+  let rest = $state(2);
+  $effect(() => { practiceTo = Math.max(i, Math.min(practiceTo, p.measures.length - 1)); }); // follows the selection, never before it
   const unitIndex = (u: { den: number; dotted: boolean }) => UNITS.findIndex((x) => x.den === u.den && x.dotted === u.dotted);
 </script>
 
@@ -129,6 +133,17 @@
         <Button onclick={() => addRamp(0.75)}>Rallentando from here</Button>
       </div>
     {/if}
+  </details>
+
+  <details class="sec" open>
+    <summary>Practice</summary>
+    <p class="mut">Repeats these measures until you press Stop, with a short rest in between.</p>
+    <div class="row">
+      <label>Last measure<input type="number" min={i + 1} max={p.measures.length} value={practiceTo + 1}
+        onchange={(e) => { practiceTo = Math.min(p.measures.length - 1, Math.max(i, Math.floor(+e.currentTarget.value) - 1)); e.currentTarget.value = String(practiceTo + 1); }} /></label>
+      <label>Rest between (s)<input type="number" min="0" max="30" step="0.5" bind:value={rest} /></label>
+    </div>
+    <Button variant="primary" onclick={() => onpractice(i, practiceTo, Math.min(30, Math.max(0, +rest || 0)))}>Practise {bars[i]}{practiceTo > i ? `–${bars[practiceTo]}` : ''}</Button>
   </details>
 
 {:else}
