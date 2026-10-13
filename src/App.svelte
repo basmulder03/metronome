@@ -25,7 +25,7 @@
   import { ocrPages } from './features/score/ocr';
   import { barChecks } from './features/score/barnumbers';
   import PdfView from './features/score/PdfView.svelte';
-  import { hasShareHash, openShare } from './features/share/link';
+  import { hasShareHash, joinShare, openShare } from './features/share/link';
   import type { Shared } from './features/share/codec';
   import { app, choose, selectedRange, timeline } from './shared/store.svelte';
   import BulkEditor from './features/score/BulkEditor.svelte';
@@ -127,6 +127,7 @@
     await init();
     await initPlaylists();
     // what sync changes in the open piece shows up straight away
+    hooks.flush = async () => { if (lib.currentId) await saveCurrent(app.piece); };
     hooks.applied = (kind, id, what) => {
       if (kind !== 'pieces' || id !== lib.currentId) return;
       if (what === 'dropped') { app.piece = emptyPiece(); app.selected = -1; doc = null; status = 'This piece was deleted on another device.'; return; }
@@ -151,6 +152,19 @@
     if (!shared) { status = 'That share link is not valid.'; return; }
     incoming = shared;
     importDialog.showModal();
+  }
+  /** The link lets people with an account edit the piece: become an editor of the very same piece (not a copy). */
+  async function joinTogether(code: string) {
+    importDialog.close();
+    incoming = null;
+    try {
+      const { pieceId } = await joinShare(code);
+      await syncNow();
+      if (entry(pieceId)) {
+        await openEntry(pieceId);
+        status = 'You are editing this piece together with its owner: changes sync, and edits you both made are merged. Attach your own PDF to see the score.';
+      } else status = 'You joined, but the piece has not arrived yet. Try “Sync now” in Options.';
+    } catch { status = 'Could not join this piece. The link may have ended, or you are offline.'; }
   }
   async function acceptImport() {
     importDialog.close();
@@ -435,12 +449,15 @@
     status = 'Reading the PDF…';
     const texts: PageText[] = [];
     for (let i = 0; i < doc.numPages; i++) if (app.piece.measures.some((m) => m.page === i)) texts.push(await readPageText(doc, i));
-    const s = [...suggestFromText(texts, app.piece), ...(await repeatHints())];
+    const text = suggestFromText(texts, app.piece);
+    if (!text.length && texts.every((t) => !t.items.length)) { // a scan: offer OCR (which reads the repeat signs along with the rest)
+      ocrOffer = true;
+      status = 'This PDF has no text layer (it looks like a scan). OCR can read tempo marks and rit./accel. words from it, and repeat signs are read with it, but not time signatures.';
+      return;
+    }
+    const s = [...text, ...(await repeatHints())];
     if (!s.length) {
-      if (texts.every((t) => !t.items.length)) {
-        ocrOffer = true;
-        status = 'This PDF has no text layer (it looks like a scan). OCR can read tempo marks and rit./accel. words from it, but not time signatures.';
-      } else status = 'No tempo marks, time signatures, rit./accel. words or repeat signs found. Set them in the editor.';
+      status = 'No tempo marks, time signatures, rit./accel. words or repeat signs found. Set them in the editor.';
       return;
     }
     showFound(s);
@@ -556,10 +573,19 @@
     <h3>Import shared {incoming.kind === 'piece' ? 'piece' : 'playlist'}?</h3>
     <p><strong>{incoming.title}</strong> · {incoming.kind === 'piece' ? `${incoming.piece.measures.length} measures` : `${incoming.items.length} pieces`}</p>
     <p class="mut">Shared links contain the markup (tempos, meters, repeats), not the score. You can attach your own PDF afterwards.</p>
-    <div class="row">
-      <Button variant="primary" onclick={() => void acceptImport()}>Import</Button>
-      <Button onclick={() => importDialog.close()}>Cancel</Button>
-    </div>
+    {#if incoming.kind === 'piece' && incoming.edit}
+      <p><strong>{incoming.edit.by}</strong> lets people with an account edit this piece. If you join, you both work on the same piece: changes sync, and when you both edit, the edits are merged.</p>
+      <div class="row">
+        <Button variant="primary" onclick={() => void joinTogether(incoming!.kind === 'piece' ? incoming!.edit!.code : '')}>Edit together</Button>
+        <Button onclick={() => void acceptImport()}>Make my own copy</Button>
+        <Button onclick={() => importDialog.close()}>Cancel</Button>
+      </div>
+    {:else}
+      <div class="row">
+        <Button variant="primary" onclick={() => void acceptImport()}>Import</Button>
+        <Button onclick={() => importDialog.close()}>Cancel</Button>
+      </div>
+    {/if}
   {/if}
 </dialog>
 <ShortcutsDialog bind:this={shortcutsDialog} />

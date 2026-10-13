@@ -161,3 +161,17 @@ describe('saved practice sections', () => {
     expect(validatePiece(x)!.sections!.map((s) => s.name)).toEqual(['fine']);
   });
 });
+
+describe('validatePiece keepIds', () => {
+  it('keeps good, unique ids for synced data, and never for imports', () => {
+    const x = JSON.parse(JSON.stringify(sample()));
+    x.measures[1].id = x.measures[0].id; // a duplicate
+    x.measures[2].id = 'has space';
+    const kept = validatePiece(x, { keepIds: true })!;
+    expect(kept.measures[0].id).toBe('x0');
+    expect(kept.measures[1].id).not.toBe('x0');
+    expect(kept.measures[2].id).not.toBe('has space');
+    expect(kept.measures[3].id).toBe('x3');
+    expect(validatePiece(x)!.measures[0].id).not.toBe('x0');
+  });
+});

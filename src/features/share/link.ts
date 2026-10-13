@@ -10,11 +10,12 @@ export const hasShareHash = (hash: string) => hash.startsWith('#s=') || hash.sta
  * Put an encoded share on the server and give back a short link. Without a connection it falls back to the long link,
  * which works on its own, so sharing never fails just because the server is out of reach.
  */
-export async function shortLink(kind: 'piece' | 'playlist', title: string, data: string, days = linkDays()): Promise<string> {
+export async function shortLink(kind: 'piece' | 'playlist', title: string, data: string, days = linkDays(), editPiece?: string): Promise<string> {
   try {
-    const { code } = await pb.send<{ code: string }>('/api/metronome/share', { method: 'POST', body: { kind, title, data, days } });
+    const { code } = await pb.send<{ code: string }>('/api/metronome/share', { method: 'POST', body: { kind, title, data, days, ...(editPiece && { editable: true, pieceId: editPiece }) } });
     return `${base()}#s=${code}`;
-  } catch {
+  } catch (e) {
+    if (editPiece) throw e; // editing together needs the server: no link without one
     return `${base()}#share=${data}`;
   }
 }
@@ -25,8 +26,9 @@ export async function openShare(hash: string): Promise<Shared | null> {
     if (hash.startsWith('#share=')) return await decodeAny(hash.slice(7));
     if (!hash.startsWith('#s=')) return null;
     const code = encodeURIComponent(hash.slice(3));
-    const { data } = await pb.send<{ data: string }>(`/api/metronome/share/${code}`, {});
-    return await decodeAny(data);
+    const { data, editable, by } = await pb.send<{ data: string; editable?: boolean; by?: string }>(`/api/metronome/share/${code}`, {});
+    const shared = await decodeAny(data);
+    return shared?.kind === 'piece' && editable ? { ...shared, edit: { code: hash.slice(3), by: by || 'Someone' } } : shared;
   } catch {
     return null;
   }
@@ -40,3 +42,14 @@ export type MyShare = { code: string; kind: 'piece' | 'playlist'; title: string;
 export const myShares = async () => (await pb.send<{ shares: MyShare[] }>('/api/metronome/shares', {})).shares;
 export const withdrawShare = (code: string) => pb.send(`/api/metronome/share/${encodeURIComponent(code)}`, { method: 'DELETE' });
 export const linkFor = (code: string) => `${base()}#s=${code}`;
+
+/** Become an editor of the piece a link shares for editing (the very same piece, not a copy). Gives the piece's id. */
+export const joinShare = (code: string) => pb.send<{ pieceId: string; own: boolean }>(`/api/metronome/share/${encodeURIComponent(code)}/join`, { method: 'POST' });
+
+export type Collab = {
+  owned: { record: string; title: string; editors: { id: string; email: string }[] }[];
+  joined: { record: string; title: string; owner: string }[];
+};
+export const collab = () => pb.send<Collab>('/api/metronome/collab', {});
+/** The owner removes an editor (`userId`), or an editor leaves (no `userId`). Whoever is removed keeps their own copy. */
+export const endEditing = (record: string, userId?: string) => pb.send('/api/metronome/collab/remove', { method: 'POST', body: { record, ...(userId && { userId }) } });

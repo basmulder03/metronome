@@ -42,7 +42,7 @@ const pack = async (x: unknown) => b64(await pipe(new TextEncoder().encode(JSON.
 const unpack = async (code: string) => JSON.parse(new TextDecoder().decode(await pipe(unb64(code) as Uint8Array<ArrayBuffer>, new DecompressionStream('deflate-raw'), MAX_BYTES)));
 
 export type Shared =
-  | { kind: 'piece'; title: string; piece: Piece }
+  | { kind: 'piece'; title: string; piece: Piece; /** the link also lets people with an account edit the piece together with its owner */ edit?: { code: string; by: string } }
   | { kind: 'playlist'; title: string; gap: number; items: { title: string; piece: Piece }[] };
 
 const MAX_PLAYLIST = 100;

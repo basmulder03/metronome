@@ -15,7 +15,7 @@
 
   // A share link opened while signed out is shown read-only; signing in then offers to import it.
   // (a shared playlist has no read-only view: signing in offers to import it)
-  let guest = $state<{ title: string; piece: Piece } | null>(null);
+  let guest = $state<{ title: string; piece: Piece; edit?: { code: string; by: string } } | null>(null);
   let listTitle = $state('');
   const startsDecoding = hasShareHash(location.hash) && !auth.user;
   let decoding = $state(startsDecoding);
@@ -37,7 +37,7 @@
 {:else if decoding}
   <p class="loading">Loading…</p>
 {:else if guest && !wantsSignIn}
-  <GuestView title={guest.title} piece={guest.piece} onsignin={() => (wantsSignIn = true)} />
+  <GuestView title={guest.title} piece={guest.piece} editBy={guest.edit?.by} onsignin={() => (wantsSignIn = true)} />
 {:else}
   <SignIn invite={invite} onjoined={joined} note={guest ? `Sign in to save a copy of “${guest.title}”.` : listTitle ? `Sign in to save a copy of the playlist “${listTitle}”.` : invalid ? 'That share link is not valid.' : ''} />
 {/if}

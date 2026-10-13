@@ -87,7 +87,15 @@ routerAdd('POST', '/api/metronome/share', (e) => {
   if (owner.getBool('blocked')) throw new ForbiddenError('This account has been blocked.');
   const expires = days ? Math.floor(Date.now() / 1000) + days * 86400 : 0;
 
-  const hash = $security.sha256(`${kind}.${data}`);
+  // a link that lets people with an account edit the piece: only for a piece of one's own that is already on the server
+  const pieceId = body.editable && kind === 'piece' ? String(body.pieceId || '').slice(0, 64) : '';
+  if (pieceId) {
+    let own = null;
+    try { own = $app.findFirstRecordByFilter('pieces', 'owner = {:o} && clientId = {:c} && deleted = false', { o: owner.id, c: pieceId }); } catch (_) { /* below */ }
+    if (!own) throw new BadRequestError('Save and sync the piece first, then share it for editing.');
+  }
+
+  const hash = $security.sha256(pieceId ? `${kind}.${pieceId}.${data}` : `${kind}.${data}`);
   try { // sharing the same thing again gives the same link (with the new lifetime)
     const same = $app.findFirstRecordByFilter('shares', 'owner = {:o} && hash = {:h}', { o: owner.id, h: hash });
     same.set('expires', expires);
@@ -104,6 +112,8 @@ routerAdd('POST', '/api/metronome/share', (e) => {
   record.set('data', data);
   record.set('hash', hash);
   record.set('expires', expires);
+  record.set('piece', pieceId);
+  record.set('editable', !!pieceId);
   $app.save(record);
   return e.json(200, { code: record.getString('code') });
 }, $apis.requireAuth('users'));
@@ -113,8 +123,56 @@ routerAdd('GET', '/api/metronome/share/{code}', (e) => {
   try { record = $app.findFirstRecordByFilter('shares', 'code = {:c}', { c: e.request.pathValue('code') }); } catch (_) { throw new NotFoundError('This share link is not valid.'); }
   const expires = record.getInt('expires');
   if (expires && expires < Math.floor(Date.now() / 1000)) throw new NotFoundError('This share link is not valid.'); // expired: same answer as unknown
-  return e.json(200, { kind: record.getString('kind'), title: record.getString('title'), data: record.getString('data') });
+  let by = '';
+  if (record.getBool('editable')) { try { by = $app.findRecordById('users', record.getString('owner')).getString('email').split('@')[0]; } catch (_) { /* owner gone */ } }
+  return e.json(200, { kind: record.getString('kind'), title: record.getString('title'), data: record.getString('data'), editable: record.getBool('editable'), by });
 });
+
+// joining a link that allows editing: you become an editor of the very same piece (not a copy), until you or the owner end it
+routerAdd('POST', '/api/metronome/share/{code}/join', (e) => {
+  let share;
+  try { share = $app.findFirstRecordByFilter('shares', 'code = {:c} && editable = true', { c: e.request.pathValue('code') }); } catch (_) { throw new NotFoundError('This share link is not valid.'); }
+  const expires = share.getInt('expires');
+  if (expires && expires < Math.floor(Date.now() / 1000)) throw new NotFoundError('This share link is not valid.');
+  if (e.auth.getBool('blocked')) throw new ForbiddenError('This account has been blocked.');
+  let piece;
+  try { piece = $app.findFirstRecordByFilter('pieces', 'owner = {:o} && clientId = {:c} && deleted = false', { o: share.getString('owner'), c: share.getString('piece') }); } catch (_) { throw new NotFoundError('The shared piece no longer exists.'); }
+  if (piece.getString('owner') === e.auth.id) return e.json(200, { pieceId: share.getString('piece'), own: true });
+  const editors = piece.getStringSlice('editors');
+  if (editors.indexOf(e.auth.id) < 0) {
+    if (editors.length >= 10) throw new BadRequestError('This piece already has as many editors as it can have.');
+    piece.set('editors', editors.concat([e.auth.id]));
+    $app.save(piece);
+  }
+  return e.json(200, { pieceId: share.getString('piece'), own: false });
+}, $apis.requireAuth('users'));
+
+// who edits what: the pieces you own that others edit, and the pieces you edit for others
+routerAdd('GET', '/api/metronome/collab', (e) => {
+  const me = e.auth.id;
+  const email = (id) => { try { return $app.findRecordById('users', id).getString('email'); } catch (_) { return ''; } };
+  const owned = $app.findRecordsByFilter('pieces', 'owner = {:o} && deleted = false', '-updatedAt', 500, 0, { o: me })
+    .filter((r) => r.getStringSlice('editors').length > 0)
+    .map((r) => ({ record: r.id, title: r.getString('title'), editors: r.getStringSlice('editors').map((id) => ({ id, email: email(id) })) }));
+  const joined = $app.findRecordsByFilter('pieces', 'editors ?= {:o} && deleted = false', '-updatedAt', 200, 0, { o: me })
+    .map((r) => ({ record: r.id, title: r.getString('title'), owner: email(r.getString('owner')) }));
+  return e.json(200, { owned, joined });
+}, $apis.requireAuth('users'));
+
+// the owner removes an editor, or an editor leaves (userId omitted): the person keeps their own local copy
+routerAdd('POST', '/api/metronome/collab/remove', (e) => {
+  const body = e.requestInfo().body;
+  let piece;
+  try { piece = $app.findRecordById('pieces', String(body.record || '')); } catch (_) { throw new NotFoundError('Unknown piece.'); }
+  const me = e.auth.id;
+  const target = String(body.userId || me);
+  if (target !== me && piece.getString('owner') !== me) throw new ForbiddenError('Only the owner can remove other editors.');
+  const editors = piece.getStringSlice('editors');
+  if (editors.indexOf(target) < 0) throw new NotFoundError('That person is not an editor of this piece.');
+  piece.set('editors', editors.filter((id) => id !== target));
+  $app.save(piece);
+  return e.json(200, { ok: true });
+}, $apis.requireAuth('users'));
 
 // the signed-in user's own links (no payloads), to copy or withdraw them
 routerAdd('GET', '/api/metronome/shares', (e) => {

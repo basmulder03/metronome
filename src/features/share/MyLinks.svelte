@@ -1,12 +1,13 @@
 <script lang="ts">
   import Button from '../../shared/ui/Button.svelte';
-  import { linkDays, linkFor, myShares, setLinkDays, withdrawShare, type MyShare } from './link';
+  import { collab, endEditing, linkDays, linkFor, myShares, setLinkDays, withdrawShare, type Collab, type MyShare } from './link';
 
   let dialog: HTMLDialogElement;
   let list = $state<MyShare[] | null>(null);
   let note = $state('');
   let days = $state(linkDays());
   let copied = $state('');
+  let together = $state<Collab>({ owned: [], joined: [] });
 
   export async function show() {
     dialog.showModal();
@@ -14,7 +15,7 @@
   }
   async function load() {
     note = '';
-    try { list = await myShares(); } catch { list = []; note = 'Could not load your links (offline?).'; }
+    try { list = await myShares(); together = await collab(); } catch { list = []; note = 'Could not load your links (offline?).'; }
   }
   async function revoke(s: MyShare) {
     if (!confirm(`Withdraw the link to “${s.title}”? Anyone who has it can no longer open it.`)) return;
@@ -22,6 +23,10 @@
   }
   async function copy(s: MyShare) {
     try { await navigator.clipboard.writeText(linkFor(s.code)); copied = s.code; } catch { /* the link is shown, select it by hand */ }
+  }
+  async function stop(record: string, userId?: string) {
+    if (!confirm(userId ? 'Stop this person editing the piece?' : 'Stop editing this piece together? You keep your own copy.')) return;
+    try { await endEditing(record, userId); await load(); } catch { note = 'Could not do that. Try again.'; }
   }
   const lifetime = (s: MyShare) => (!s.expires ? 'until withdrawn' : s.expires * 1000 < Date.now() ? 'expired' : `until ${new Date(s.expires * 1000).toLocaleDateString()}`);
 </script>
@@ -49,6 +54,24 @@
       </li>
     {/each}
   </ul>
+  {#if together.owned.length || together.joined.length}
+    <h4>Editing together</h4>
+    <ul>
+      {#each together.owned as p (p.record)}
+        <li>
+          <div class="t"><strong>{p.title || 'Untitled'}</strong><span class="mut">You own it. Also editing: {p.editors.map((x) => x.email).join(', ')}</span></div>
+          <span class="acts">{#each p.editors as ed (ed.id)}<Button size="sm" onclick={() => void stop(p.record, ed.id)} aria-label="Stop {ed.email} editing {p.title}">Remove {ed.email.split('@')[0]}</Button>{/each}</span>
+        </li>
+      {/each}
+      {#each together.joined as p (p.record)}
+        <li>
+          <div class="t"><strong>{p.title || 'Untitled'}</strong><span class="mut">Owned by {p.owner}. You edit it with them.</span></div>
+          <span class="acts"><Button size="sm" onclick={() => void stop(p.record)} aria-label="Leave {p.title}">Leave</Button></span>
+        </li>
+      {/each}
+    </ul>
+    <p class="mut">Whoever is removed (or leaves) keeps their own copy of the piece on their device and account.</p>
+  {/if}
 </dialog>
 
 <style>
@@ -56,6 +79,7 @@
   dialog::backdrop { background: var(--scrim); }
   .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
   h3 { margin: 0; }
+  h4 { margin: var(--space-4) 0 0; }
   ul { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
   li { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); }
   .t { display: grid; min-width: 0; }

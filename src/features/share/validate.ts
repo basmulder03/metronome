@@ -24,20 +24,24 @@ function marks(v: unknown): Marks | undefined {
 
 /**
  * Rebuild a Piece from untrusted data (share links, imported files): anything unexpected is dropped or rejects the whole piece.
- * Fresh measure ids are generated, so imported data never chooses ids.
+ * Fresh measure ids are generated, so imported data never chooses ids (unless `keepIds`, for the user's own synced data).
  */
-export function validatePiece(x: unknown): Piece | null {
+export function validatePiece(x: unknown, { keepIds = false }: { keepIds?: boolean } = {}): Piece | null {
   if (!isObj(x) || !Array.isArray(x.measures) || x.measures.length === 0 || x.measures.length > MAX_MEASURES) return null;
   const n = x.measures.length;
   const piece: Piece = { measures: [], meters: [], tempos: [], ramps: [], countIn: int(x.countIn, 0, 4) ? x.countIn : 0, ...(x.afterPart === 'stop' && { afterPart: 'stop' as const }) };
 
+  const used = new Set<string>();
   const ids = new Map<string, string>(); // the ids the data came with (a backup file has them) and the fresh ones
   for (const m of x.measures) {
     if (!isObj(m) || !int(m.page, 0, 9999) || !isObj(m.rect)) return null;
     const { x: rx, y: ry, w, h } = m.rect;
     if (!num(rx, 0, 1) || !num(ry, 0, 1) || !num(w, 0.0001, 1) || !num(h, 0.0001, 1)) return null;
     const mk = marks(m.marks);
-    const id = crypto.randomUUID();
+    // `keepIds`: the data is the user's own (sync), so boxes keep their ids and edits from several people can be matched up
+    const own = keepIds && typeof m.id === 'string' && /^[\w-]{1,64}$/.test(m.id) && !used.has(m.id) ? m.id : undefined;
+    const id = own ?? crypto.randomUUID();
+    used.add(id);
     if (typeof m.id === 'string') ids.set(m.id, id);
     piece.measures.push({ id, page: m.page, rect: { x: rx, y: ry, w, h }, ...(mk && { marks: mk }) });
   }

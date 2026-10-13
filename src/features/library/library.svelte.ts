@@ -3,7 +3,8 @@ import { all, del, get, put } from '../../shared/idb';
 import { addTombstone, clearTombstone } from '../../shared/tombstones';
 import { emptyPiece, type Piece } from '../../shared/types';
 
-export type Entry = { id: string; title: string; updated: number; hasPdf: boolean; piece: Piece };
+/** `base`, `baseTitle`, `syncedAt`: what the piece looked like, and the server's timestamp, at the last sync: the starting point for merging edits made elsewhere. */
+export type Entry = { id: string; title: string; updated: number; hasPdf: boolean; piece: Piece; base?: Piece; baseTitle?: string; syncedAt?: number };
 
 export const lib = $state({ entries: [] as Entry[], currentId: null as string | null, ready: false });
 
@@ -58,11 +59,30 @@ export async function saveCurrent(piece: Piece) {
 /** Create or overwrite a piece with what the server has. Keeps the server's timestamp so the next sync sees no difference. */
 export async function applyRemote(id: string, title: string, piece: Piece, updated: number) {
   const e = entry(id);
-  if (e) { e.title = title; e.piece = piece; e.updated = updated; }
-  else lib.entries.push({ id, title, piece, updated, hasPdf: false });
+  const base = structuredClone($state.snapshot(piece)) as Piece;
+  if (e) { e.title = title; e.piece = piece; e.updated = updated; e.base = base; e.baseTitle = title; e.syncedAt = updated; }
+  else lib.entries.push({ id, title, piece, updated, hasPdf: false, base, baseTitle: title, syncedAt: updated });
   await put('pieces', id, $state.snapshot(entry(id)));
   await clearTombstone('pieces', id);
   byRecent();
+}
+
+/** The server now has what this device has: remember it as the starting point for the next merge. */
+export async function markSynced(id: string) {
+  const e = entry(id);
+  if (!e) return;
+  e.base = structuredClone($state.snapshot(e.piece)) as Piece;
+  e.baseTitle = e.title;
+  e.syncedAt = e.updated;
+  await put('pieces', id, $state.snapshot(e));
+}
+
+/** Another editor changed the piece while this device did too: keep the merged result (it is newer than both, so it is pushed next). */
+export async function applyMerged(id: string, title: string, piece: Piece, updated: number) {
+  const e = entry(id);
+  if (!e) return;
+  e.title = title; e.piece = piece; e.updated = updated;
+  await put('pieces', id, $state.snapshot(e));
 }
 
 /** The piece was deleted on another device: drop it (and its PDF) here without creating a tombstone. */

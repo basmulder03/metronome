@@ -2,6 +2,7 @@
   import Button from '../../shared/ui/Button.svelte';
   import { encodeShare } from '../share/codec';
   import { shortLink } from '../share/link';
+  import { syncNow } from '../sync/sync.svelte';
   import MyLinks from '../share/MyLinks.svelte';
   import { exportBackup, parseBackup } from './backup';
   import { pl, touch } from '../playlist/playlist.svelte';
@@ -19,11 +20,19 @@
     if (t) void rename(id, t);
   }
   let link = $state<{ id: string; url: string } | null>(null);
+  let allowEdit = $state(false); // new piece links also let people with an account edit the piece
   let copied = $state(false);
   async function share(id: string) {
     const e = lib.entries.find((x) => x.id === id);
     if (!e) return;
-    link = { id, url: await shortLink('piece', e.title, await encodeShare(e.title, $state.snapshot(e.piece))) };
+    note = '';
+    try {
+      if (allowEdit) await syncNow(); // the server needs the piece before others can edit it
+      link = { id, url: await shortLink('piece', e.title, await encodeShare(e.title, $state.snapshot(e.piece)), undefined, allowEdit ? id : undefined) };
+    } catch (err) {
+      link = null;
+      note = (err as { response?: { message?: string } })?.response?.message ?? 'Could not make an editing link. Are you online?';
+    }
     copied = false;
   }
   async function copy() {
@@ -87,6 +96,7 @@
     </div>
   </div>
   {#if note}<p class="mut" role="status">{note}</p>{/if}
+  <label class="check allow"><input type="checkbox" bind:checked={allowEdit} /> Links I make for a piece also let people with an account edit it with me (their changes and mine are merged)</label>
   {#if lib.entries.length > 1}
     <div class="bulk">
       <label class="check"><input type="checkbox" checked={ticked.length === lib.entries.length} onchange={(e) => (ticked = e.currentTarget.checked ? lib.entries.map((x) => x.id) : [])} /> Select all</label>
@@ -145,6 +155,7 @@
   li { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); }
   li.current { border-color: var(--accent); }
   .title { display: grid; min-width: 0; flex: 1; }
+  .allow { margin-top: var(--space-2); font-size: var(--font-sm); }
   .bulk { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-3); }
   .acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
   .swap { flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-1) var(--space-2); min-height: 32px; font-size: 13px; color: var(--fg); cursor: pointer; }

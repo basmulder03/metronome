@@ -150,7 +150,7 @@ test('only markup reaches the server, never the PDF', async ({ page, user, reque
   expect(items).toHaveLength(1);
   expect(items[0].markup.measures).toHaveLength(8);
   // exactly the markup fields: nothing that could carry a file
-  expect(Object.keys(items[0]).sort()).toEqual(['clientId', 'collectionId', 'collectionName', 'deleted', 'id', 'markup', 'owner', 'title', 'updatedAt'].sort());
+  expect(Object.keys(items[0]).sort()).toEqual(['clientId', 'collectionId', 'collectionName', 'deleted', 'editors', 'id', 'markup', 'owner', 'title', 'updatedAt'].sort());
   expect(body).not.toContain('JVBERi'); // base64 of "%PDF-1"
   expect(body.length).toBeLessThan(20_000);
 });

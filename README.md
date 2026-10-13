@@ -131,6 +131,22 @@ signing in offers to import it, and a playlist link imports the playlist and its
 working at once), and sets how long new links stay valid (until withdrawn, 7 or 30 days, a year; an expired link answers like an unknown one).
 Old long `#share=` links still open, and if the server cannot be reached, sharing falls back to such a link.
 
+### Editing a piece together
+
+Sharing a piece from the Library has a tick box: *Links I make for a piece also let people with an account edit it with me*. Someone who
+opens such a link and is signed in can **Edit together** (they become an editor of the very same piece, not a copy) or take their own copy.
+Both then work on it; the piece shows up in their library (without the PDF: each attaches their own) and sync keeps it in step.
+
+When both of you changed it since the last sync, the two versions are **merged**, not overwritten. The merge starts from the version both
+had at the last sync, and matches boxes by id: a box added or removed by one person never shifts what the other did to its neighbours;
+tempos, time signatures and accel./rall. follow their box; each repeat or other mark on a box is merged on its own (one person's fermata
+and the other's repeat both stay); a box either person removed stays removed; and if both changed the very same thing, the newer save wins.
+It also works for your own devices (the same piece edited on a phone and a laptop). A piece with no earlier sync to start from falls back to
+"the newer save wins".
+
+*Library > My links > Editing together* lists the pieces you share and who edits them, with **Remove**, and the pieces you edit for others,
+with **Leave**. Whoever is removed (or leaves) keeps their own copy. Editors cannot delete the piece for the owner, and cannot add editors.
+
 ### Accounts and administration
 
 Nobody can create an account directly through the API. Accounts come from the register route, which follows the
@@ -197,7 +213,7 @@ Vertical slices under `src/features`, shared pieces under `src/shared`:
 | `library` | Pieces and their PDFs, stored on the device (IndexedDB, one database per account) |
 | `playlist` | Ordered pieces, sequential playback, one-file export |
 | `share` | Link codec (pieces and playlists) and validation (untrusted input), short-link client, read-only guest view |
-| `auth`, `admin`, `sync` | Sign-in and invitations, the admin panel (invitations with QR, users, registration mode), last-write-wins sync of markup between devices |
+| `auth`, `admin`, `sync` | Sign-in and invitations, the admin panel (invitations with QR, users, registration mode), sync of markup between devices and people with a three-way merge of pieces |
 
 Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dark()`, a test that rejects raw colours).
 
@@ -216,7 +232,8 @@ Styling rules are in `src/shared/ui/STYLE.md` (tokens, light/dark via `light-dar
   first box of a system, after the clef and key signature), as suggestions in *Read from PDF*. Voltas (ending brackets) and fermatas
   are not read; mark them in the editor. Heavily skewed, hand-written or very dense scores may be missed.
 - **Share links:** at most 200 per account; a code is deleted with its owner's account, and expired links are only hidden, not purged.
-- **Sync trusts device clocks** (last write wins per piece or playlist). A badly wrong clock can win unfairly.
+- **Sync trusts device clocks** to decide which of two edits to the very same thing wins (everything else is merged). A badly wrong clock can win unfairly.
+- **Editing together** is for pieces, not playlists, and a person pushing while another pushes at the very same moment can still overwrite them once (the next sync merges it back); up to 10 editors per piece.
 - **Sync pulls everything each time**, which is fine for a personal library, not for thousands of pieces.
 - **Count-in** uses the first measure's meter and tempo; fermatas apply on every pass of a repeat.
 - **WAV export** renders in two-minute chunks but is assembled in memory at 2 bytes per sample (about 320 MB per hour of audio); the app asks before exports longer than 30 minutes.

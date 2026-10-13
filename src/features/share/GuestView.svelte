@@ -13,7 +13,7 @@
   import Button from '../../shared/ui/Button.svelte';
 
   // A signed-out visitor opening a share link: play, export and look at it with their own PDF; nothing is saved or editable.
-  let { title, piece, onsignin }: { title: string; piece: Piece; onsignin: () => void } = $props();
+  let { title, piece, editBy, onsignin }: { title: string; piece: Piece; editBy?: string; onsignin: () => void } = $props();
 
   // svelte-ignore state_referenced_locally -- the guest view is mounted once per shared piece
   app.piece = piece;
@@ -68,7 +68,7 @@
 </script>
 
 <header>
-  <div class="who"><strong>{title}</strong> <span class="mut">shared with you · {piece.measures.length} measures</span></div>
+  <div class="who"><strong>{title}</strong> <span class="mut">shared with you · {piece.measures.length} measures{editBy ? ` · ${editBy} lets people with an account edit it` : ''}</span></div>
   <label class="file">Attach your PDF<input type="file" accept="application/pdf" onchange={attach} hidden /></label>
   {#if doc && doc.numPages > 1}
     <span class="grp">

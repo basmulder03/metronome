@@ -11,7 +11,7 @@ test('reads tempo, time signature and rit. marks from a real score and applies t
 
   await page.getByRole('button', { name: 'Read from PDF' }).click();
   const dlg = page.getByRole('dialog', { name: 'Read from PDF' });
-  await expect(dlg.getByRole('listitem')).toHaveCount(11); // both pages: 2 at the start, 4 restored tempos, 5 rall. ramps
+  await expect(dlg.getByRole('listitem')).toHaveCount(19); // both pages: 2 at the start, 4 restored tempos, 5 rall. ramps, and 8 repeat signs (four repeated sections)
   const rows = await dlg.getByRole('listitem').allInnerTexts();
   expect(rows.some((r) => /Measure 1 · Time signature: 3\/4/.test(r))).toBe(true);
   expect(rows.some((r) => /Measure 1 · Tempo: ♩ = 130/.test(r))).toBe(true);
@@ -21,17 +21,17 @@ test('reads tempo, time signature and rit. marks from a real score and applies t
   expect(rows.some((r) => /Measures 23–24 · Accel\.\/rall\./.test(r))).toBe(true);
   expect(rows.some((r) => /Measures 31–33 · Accel\.\/rall\./.test(r))).toBe(true);
   // guesses start unticked, certainties ticked
-  await expect(dlg.getByRole('checkbox', { checked: true })).toHaveCount(6); // the time signature and five tempo marks
+  await expect(dlg.getByRole('checkbox', { checked: true })).toHaveCount(14); // the time signature, five tempo marks and eight repeat signs
 
-  await dlg.getByRole('button', { name: /^Add 6 selected/ }).click();
-  await expect(page.getByRole('status')).toContainText('Added 6');
+  await dlg.getByRole('button', { name: /^Add 14 selected/ }).click();
+  await expect(page.getByRole('status')).toContainText('Added 14');
   await expect(page.locator('.box').nth(0)).toContainText('3/4');
   await expect(page.locator('.box').nth(0)).toContainText('=130');
   await expect(page.locator('.box').nth(16)).toContainText('=130');
 
   // adding again changes nothing: what is already set is kept
   await page.getByRole('button', { name: 'Read from PDF' }).click();
-  await page.getByRole('dialog', { name: 'Read from PDF' }).getByRole('button', { name: /^Add 6 selected/ }).click();
+  await page.getByRole('dialog', { name: 'Read from PDF' }).getByRole('button', { name: /^Add 6 selected/ }).click(); // the repeat signs found before are not offered again
   await expect(page.getByRole('status')).toContainText('kept 6 you had already set');
 });
 
