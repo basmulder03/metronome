@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { openPdf } from '../score/pdf';
+  import { pulseIcon, resetIcon } from '../playback/favicon';
   import { clickEvents, longExportWarning, Player, renderJob } from '../playback/audio';
   import MeasureStrip from '../score/MeasureStrip.svelte';
   import PdfView from '../score/PdfView.svelte';
@@ -26,7 +27,8 @@
     const pg = app.piece.measures[m]?.page;
     if (pg !== undefined && doc) pageNum = pg;
   };
-  player.onStop = () => { playing = false; app.playing = -1; };
+  player.onBeat = pulseIcon;
+  player.onStop = () => { playing = false; app.playing = -1; resetIcon(); };
   const last = $derived(app.piece.measures.length - 1);
 
   async function attach(e: Event) {

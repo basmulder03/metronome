@@ -27,7 +27,10 @@ test('a practice loop repeats a few measures with a rest in between until stoppe
     seen.push(await lit.count() ? await page.locator('.box').evaluateAll((els) => els.findIndex((e) => e.classList.contains('playing'))) : -1);
     await page.waitForTimeout(80);
   }
+  const icons = new Set(await page.evaluate(() => [document.querySelector<HTMLLinkElement>('link[rel=icon]')!.href.slice(0, 15)]));
   await page.getByRole('button', { name: 'Stop' }).click();
+  expect(icons).toEqual(new Set(['data:image/png;'])); // the tab icon beats while playing
+  await expect.poll(() => page.evaluate(() => document.querySelector<HTMLLinkElement>('link[rel=icon]')!.href)).toContain('icon.svg');
   const joined = seen.join(',');
   expect(seen).toContain(1);
   expect(seen).toContain(2);

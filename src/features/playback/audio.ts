@@ -49,9 +49,12 @@ export class Player {
   private timer = 0;
   private endTimer = 0;
   private raf = 0;
+  private beatTimers = new Set<number>();
   /** Called each frame with the current measure index. */
   onMeasure: (m: number) => void = () => {};
   onStop: () => void = () => {};
+  /** Called at the moment each beat sounds (0 = off-beat, 1 = beat, 2 = start of the bar), audible or not. */
+  onBeat: (accent: 0 | 1 | 2) => void = () => {};
   playing = false;
   /** Settles after play(): true when the range finished by itself, false when stopped early. */
   whenDone: Promise<boolean> = Promise.resolve(false);
@@ -83,6 +86,9 @@ export class Player {
         const when = origin + lap * lapLength + (tl.beats[i].time - t0);
         if (when > ctx.currentTime + 0.2) return;
         if (audible(tl.beats[i].accent, opts)) click(ctx, when, tl.beats[i].accent);
+        const accent = tl.beats[i].accent;
+        const id = window.setTimeout(() => { this.beatTimers.delete(id); this.onBeat(accent); }, Math.max(0, (when - ctx.currentTime) * 1000));
+        this.beatTimers.add(id);
         if (++i >= iEnd) {
           if (!loop) {
             clearInterval(this.timer);
@@ -110,6 +116,8 @@ export class Player {
   stop(notify = true, completed = false) {
     clearInterval(this.timer);
     clearTimeout(this.endTimer);
+    for (const t of this.beatTimers) clearTimeout(t);
+    this.beatTimers.clear();
     cancelAnimationFrame(this.raf);
     if (this.ctx) { void this.ctx.close(); this.ctx = undefined; } // closing silences clicks already scheduled
     if (this.playing && notify) this.onStop();
