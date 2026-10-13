@@ -2,6 +2,7 @@
   import Button from '../../shared/ui/Button.svelte';
   import { app } from '../../shared/store.svelte';
   import { barLabels, firstBar } from '../structure/bars';
+  import { partIndexOf, partsOf } from '../structure/parts';
   import { KIT_NAMES, type Kit, type Pattern } from './audio';
   import { beat, saveSound, sound } from './sound.svelte';
 
@@ -14,8 +15,11 @@
   const n = $derived(app.piece.measures.length);
   const bars = $derived(barLabels(app.piece.measures));
   const here = $derived(Math.min(Math.max(0, Math.round(position)), Math.max(0, n - 1)));
-  const fill = $derived(n > 1 ? (Math.min(Math.max(position, 0), n - 1) / (n - 1)) * 100 : 0);
-  const label = $derived(n ? `Measure ${firstBar(bars[here] ?? String(here + 1))} of ${n}` : 'No measures yet');
+  const pct = (at: number) => (n > 1 ? (Math.min(Math.max(at, 0), n - 1) / (n - 1)) * 100 : 0);
+  const fill = $derived(pct(position)); // the fill and the thumb both use this, so they always meet
+  const parts = $derived(partsOf(app.piece.measures));
+  const part = $derived(parts[partIndexOf(parts, here)]);
+  const label = $derived(n ? `Measure ${firstBar(bars[here] ?? String(here + 1))} of ${n}${part ? ` · ${part.name}` : ''}` : 'No measures yet');
 
   const PATTERNS: { value: Pattern; label: string }[] = [
     { value: 'groups', label: 'Beats and groups (1 2 2 2)' },
@@ -33,9 +37,13 @@
   {/if}
   {#if sound.flash}<span class="dot" class:on={beat.accent >= 0} class:down={beat.accent === 2} aria-hidden="true"></span>{/if}
   <div class="seek">
-    <div class="track" aria-hidden="true"><div class="fill" style:width="{fill}%"></div></div>
+    <div class="track" aria-hidden="true">
+      <div class="fill" style:width="{fill}%"></div>
+      {#each parts.filter((p) => p.start > 0) as p (p.index)}<span class="part" style:left="{pct(p.start)}%" title={p.name}></span>{/each}
+    </div>
     <input type="range" min="0" max={Math.max(0, n - 1)} step="1" value={here} disabled={n < 2} aria-label="Position in the piece" aria-valuetext={label}
       oninput={(e) => onseek(+e.currentTarget.value, false)} onchange={(e) => onseek(+e.currentTarget.value, true)} />
+    <span class="thumb" aria-hidden="true" style:--at={fill}></span>
   </div>
   <span class="where" aria-live="off">{label}{sound.speed !== 100 ? ` · ${sound.speed}%` : ''}</span>
   <details class="sound">
@@ -68,18 +76,19 @@
 
 <style>
   .bar { position: fixed; inset: auto 0 0 0; height: var(--bar-h); z-index: 7; display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3); padding-bottom: env(safe-area-inset-bottom); background: var(--bg); border-top: 1px solid var(--border); box-shadow: 0 -2px 8px var(--shadow); }
-  .seek { position: relative; flex: 1; min-width: 80px; height: var(--tap); display: grid; align-items: center; }
-  .track { position: absolute; left: 0; right: 0; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); overflow: hidden; }
-  .fill { height: 100%; background: var(--accent); }
+  .seek { position: relative; flex: 1; min-width: 80px; height: var(--tap); display: grid; align-items: center; --r: 11px; }
+  /* the track starts and ends at the thumb's centre at each end, so the fill, the part marks and the thumb all share one scale */
+  .track { position: absolute; left: var(--r); right: var(--r); top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); }
+  .fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  .part { position: absolute; top: -6px; bottom: -6px; width: 2px; margin-left: -1px; background: var(--mark); border-radius: 1px; }
+  .thumb { position: absolute; top: 50%; left: calc(var(--r) + (100% - 2 * var(--r)) * var(--at) / 100); width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); pointer-events: none; }
   /* the real slider sits on top, see-through, so the whole bar is a big touch target and the keyboard still works */
   .seek input { position: relative; width: 100%; height: var(--tap); margin: 0; background: transparent; appearance: none; touch-action: none; }
   .seek input::-webkit-slider-runnable-track { background: transparent; height: var(--tap); }
   .seek input::-moz-range-track { background: transparent; height: var(--tap); }
-  .seek input::-webkit-slider-thumb { appearance: none; width: 22px; height: 22px; margin-top: 9px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); }
-  .seek input::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
-  .dot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--accent); transition: background 0.05s; }
-  .dot.on { background: var(--accent); transform: scale(1.15); }
-  .dot.down { background: var(--warn); border-color: var(--warn); }
+  .seek input::-webkit-slider-thumb { appearance: none; width: 22px; height: 22px; margin-top: 9px; border: 0; background: transparent; }
+  .seek input::-moz-range-thumb { width: 22px; height: 22px; border: 0; background: transparent; }
+  .seek input:focus-visible + .thumb { outline: 2px solid var(--fg); outline-offset: 2px; }
   .where { font-size: var(--font-sm); color: var(--fg-muted); white-space: nowrap; }
   .sound { position: relative; }
   .sound summary { cursor: pointer; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); display: inline-flex; align-items: center; }

@@ -76,3 +76,21 @@ test('a dot can flash on every beat', async ({ page }) => {
   await expect(page.locator('.dot.on.down')).toHaveCount(1, { timeout: 5000 }); // and differently on the first beat of a bar
   await page.getByRole('button', { name: 'Stop' }).click();
 });
+
+test('the thumb sits exactly at the end of the fill, and parts are marked on the bar', async ({ page }) => {
+  await detected(page);
+  await page.locator('.box').nth(4).click();
+  await page.getByLabel('A new part starts at this measure').check();
+  await page.getByLabel('Name of the part').fill('Finale');
+  await page.getByLabel('Position in the piece').fill('5');
+  const bar = page.getByRole('group', { name: 'Playback' });
+  const fill = (await bar.locator('.fill').boundingBox())!;
+  const thumb = (await bar.locator('.thumb').boundingBox())!;
+  expect(thumb.x + thumb.width / 2).toBeCloseTo(fill.x + fill.width, 0); // the circle is at the end of the progress, not ahead of it
+  await expect(bar.locator('.part')).toHaveCount(1); // one mark where Finale starts
+  await expect(bar.locator('.part')).toHaveAttribute('title', 'Finale');
+  await expect(bar).toContainText('· Finale');
+  const mark = (await bar.locator('.part').boundingBox())!;
+  const track = (await bar.locator('.track').boundingBox())!;
+  expect(mark.x + 1 - track.x).toBeCloseTo((track.width * 4) / 7, 0); // box 5 of 8: four sevenths along
+});
