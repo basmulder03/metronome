@@ -313,3 +313,19 @@ test('a short ending bar completes an upbeat piece, and the count-in leaves room
   // "1 2 3" then the upbeat is "4": three count-in beats, not four
   expect(await wavSeconds(page)).toBeCloseTo(3 * 0.5 + (1 + 4 + 4 + 3) * 0.5 + 0.5, 1);
 });
+
+test('export MIDI downloads a standard MIDI file with the tempo', async ({ page }) => {
+  await openAndMark(page);
+  await page.locator('.box').first().click();
+  await page.getByRole('button', { name: 'Set tempo here' }).click();
+  await page.getByLabel('BPM').first().fill('120');
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export MIDI' }).click();
+  const d = await dl;
+  expect(d.suggestedFilename()).toMatch(/\.mid$/);
+  const { readFileSync } = await import('node:fs');
+  const bytes = readFileSync((await d.path())!);
+  expect(bytes.subarray(0, 4).toString()).toBe('MThd');
+  expect(bytes.readUInt16BE(12)).toBe(480);
+  expect(bytes.includes(Buffer.from([0xff, 0x51, 0x03, 0x07, 0xa1, 0x20]))).toBe(true); // 500000 µs a quarter = 120 bpm
+});

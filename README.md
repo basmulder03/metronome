@@ -113,6 +113,8 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   switches to *pen mode* (also in Options): the pen draws a box anywhere on the page (no need to switch to Draw), moves a box or its
   edge by dragging it, and fingers only scroll and tap; a palm resting on the screen while writing is ignored. Pinch-zoom is replaced
   by the zoom buttons while pen mode is on.
+- **Export MIDI** writes the click track as a standard MIDI file (percussion channel) with the piece's tempo changes and time signatures as
+  real meta events, so a DAW follows the same tempo map. It uses the written tempo and the chosen click pattern, not the speed setting.
 - **The tab icon beats** in time with the click while playing, with a bigger swell on the first beat of each bar.
 - **Moving a library:** in the Library, *Export all* saves the markup of every piece as one file (never a PDF) and *Import file*
   adds the pieces from such a file. That is how markup made on a test server is moved to the real one.

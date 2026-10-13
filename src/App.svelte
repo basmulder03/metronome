@@ -3,6 +3,7 @@
   import { openPdf } from './features/score/pdf';
   import { pulseIcon, resetIcon } from './features/playback/favicon';
   import PlayBar from './features/playback/PlayBar.svelte';
+  import { midiFile } from './features/playback/midi';
   import { beatSignal, clickOpts } from './features/playback/sound.svelte';
   import { beatRange, clickEvents, longExportWarning, Player, renderJob } from './features/playback/audio';
   import { countIn, firstStepOf, stopStepFrom } from './features/tempo-map/timeline';
@@ -253,6 +254,15 @@
     return play(from, app.piece.measures.length - 1, false, end);
   }
 
+  /** The whole click track as a MIDI file, for a DAW: the tempo map and time signatures come along as meta events. */
+  function exportMidi() {
+    if (!app.piece.measures.length) return;
+    const bytes = midiFile(current?.title ?? 'Click track', $state.snapshot(app.piece), clickOpts());
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'audio/midi' })), download: `${current?.title ?? 'click-track'}.mid` });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   async function exportWav(part?: Part) {
     if (!app.piece.measures.length) return;
     const tl = timeline();
@@ -493,6 +503,7 @@
   </span>
   <span class="grp">
     <Button disabled={busy} onclick={() => void exportWav()}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export WAV'}</Button>
+    <Button onclick={exportMidi} disabled={!app.piece.measures.length} title="The click as a MIDI file, with the tempo changes and time signatures">Export MIDI</Button>
   </span>
   <details class="opts end">
     <summary>Options</summary>
