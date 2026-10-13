@@ -12,10 +12,21 @@ export type Kit = 'click' | 'wood' | 'beep' | 'tick';
 /** What the clicks sound like. */
 export type SoundOpts = { kit?: Kit; /** 0..1 */ volume?: number };
 /** `gap`: seconds of silence between laps when looping (a practice loop). `subdivide` is the older spelling of pattern `all`. */
-export type ClickOpts = { subdivide: boolean; gap?: number; pattern?: Pattern } & SoundOpts;
+export type Silence = 'off' | 'alternate' | 'fourth';
+export type ClickOpts = { subdivide: boolean; gap?: number; pattern?: Pattern; /** bars that drop out of the click, to keep the pulse yourself */ silent?: Silence } & SoundOpts;
 
 type Accent = 0 | 1 | 2;
 const patternOf = (o: ClickOpts): Pattern => o.pattern ?? (o.subdivide ? 'all' : 'groups');
+
+/**
+ * Is bar number `bar` (counted from the first one played) silent? Every lap shifts which bars drop out, so that over a practice loop
+ * each bar gets its turn without the click.
+ */
+export function silentBar(bar: number, lap: number, mode: Silence | undefined): boolean {
+  if (mode === 'alternate') return (bar + lap) % 2 === 1;
+  if (mode === 'fourth') return (bar + lap) % 4 === 3;
+  return false;
+}
 
 /** The strength a beat sounds with under the chosen pattern, or null when it stays silent. */
 export function levelOf(accent: Accent, o: ClickOpts): Accent | null {
@@ -136,6 +147,7 @@ export class Player {
     const lead = pre.length ? -pre[0].time : 0;
     const origin = ctx.currentTime + 0.1 + lead;
     for (const b of pre) if (b.accent) click(ctx, origin + b.time, b.accent, opts); // count-in clicks group starts only
+    const step0 = tl.beats[i0].step;
     let i = i0, lap = 0;
     this.playing = true;
 
@@ -146,7 +158,7 @@ export class Player {
         if (when > ctx.currentTime + 0.2) return;
         const accent = tl.beats[i].accent;
         const level = levelOf(accent, opts);
-        if (level !== null) click(ctx, when, level, opts);
+        if (level !== null && !silentBar(tl.beats[i].step - step0, lap, opts.silent)) click(ctx, when, level, opts);
         const id = window.setTimeout(() => { this.beatTimers.delete(id); this.onBeat(accent); }, Math.max(0, (when - ctx.currentTime) * 1000));
         this.beatTimers.add(id);
         if (++i >= iEnd) {
@@ -203,7 +215,7 @@ export function clickEvents(tl: Timeline, from: number, to: number, opts: ClickO
   const lead = pre.length ? -pre[0].time : 0;
   const events: ClickEvent[] = [
     ...pre.filter((b) => b.accent).map((b) => ({ t: lead + b.time, accent: b.accent })),
-    ...tl.beats.slice(i0, iEnd).flatMap((b) => { const accent = levelOf(b.accent, opts); return accent === null ? [] : [{ t: lead + b.time - t0, accent }]; }),
+    ...tl.beats.slice(i0, iEnd).flatMap((b) => { const accent = levelOf(b.accent, opts); return accent === null || silentBar(b.step - tl.beats[i0].step, 0, opts.silent) ? [] : [{ t: lead + b.time - t0, accent }]; }),
   ];
   return { events, seconds: lead + tEnd - t0 + TAIL_SECONDS, sound: { kit: opts.kit, volume: opts.volume } };
 }

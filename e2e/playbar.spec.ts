@@ -51,12 +51,13 @@ test('click pattern, sound and volume are chosen in the bar and remembered', asy
   await page.getByRole('group', { name: 'Playback' }).getByText('Sound', { exact: true }).click();
   await page.locator('.sound select').first().selectOption('all');
   await page.locator('.sound select').nth(1).selectOption('wood');
-  await page.locator('.sound input[type=range]').fill('0.5');
-  await page.locator('.sound input[type=range]').dispatchEvent('change');
-  await expect(page.locator('.sound input[type=range]')).toBeVisible();
+  await page.locator('.sound select').nth(2).selectOption('alternate');
+  await page.locator('.sound input[type=range]').last().fill('0.5');
+  await page.locator('.sound input[type=range]').last().dispatchEvent('change');
   await page.reload();
   await page.getByRole('group', { name: 'Playback' }).getByText('Sound', { exact: true }).click();
   await expect(page.locator('.sound select').first()).toHaveValue('all');
   await expect(page.locator('.sound select').nth(1)).toHaveValue('wood');
-  await expect(page.locator('.sound input[type=range]')).toHaveValue('0.5');
+  await expect(page.locator('.sound select').nth(2)).toHaveValue('alternate');
+  await expect(page.locator('.sound input[type=range]').last()).toHaveValue('0.5');
 });

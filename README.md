@@ -104,7 +104,8 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   arrow keys) to any measure (the picked measure and the page follow; when playing, playback restarts there when you let go), and
   *Sound*: the **click pattern** (beats and groups `1 2 2 2`; every beat with soft subdivisions, e.g. 12/8 as `1 3 3 2 3 3 2 3 3 2 3 3`;
   group beats all equal `1 1 1 1`; start of the bar only), the **sound** (click, wood block, beep, tick) and the **volume**. These
-  are remembered on the device and also apply to exports and playlists.
+  are remembered on the device and also apply to exports and playlists. **Silent bars** drops every other (or every fourth) bar out
+  of the click so you keep the pulse yourself; in a practice loop the silent bars shift every lap, so each bar gets its turn.
 - **Tablets and pens:** the app opens in *Select* mode. Everything that had a shortcut also has a button (undo, redo, previous/next
   measure, merge, tidy). From 900px wide the settings are a panel beside the score (nothing is ever covered); narrower, a sheet at
   the bottom. Touch targets are finger-sized and the edge grips bigger on touch screens. When a **pen** (an S Pen, say) is used the app

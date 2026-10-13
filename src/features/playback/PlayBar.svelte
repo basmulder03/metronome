@@ -46,6 +46,13 @@
       <label>Sound
         <select bind:value={sound.kit} onchange={saveSound}>{#each Object.entries(KIT_NAMES) as [k, name]}<option value={k as Kit}>{name}</option>{/each}</select>
       </label>
+      <label>Silent bars
+        <select bind:value={sound.silent} onchange={saveSound}>
+          <option value="off">None: the click plays throughout</option>
+          <option value="alternate">Every other bar is silent</option>
+          <option value="fourth">Every fourth bar is silent</option>
+        </select>
+      </label>
       <label>Speed {sound.speed}%
         <input type="range" min="25" max="200" step="5" bind:value={sound.speed} onchange={saveSound} />
       </label>

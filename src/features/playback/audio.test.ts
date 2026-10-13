@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece } from '../../shared/types';
 import { buildTimeline } from '../tempo-map/timeline';
-import { beatRange, clickEvents, joinJobs, longExportWarning, renderChunks, wavBlob, type Job } from './audio';
+import { beatRange, clickEvents, joinJobs, longExportWarning, renderChunks, silentBar, wavBlob, type Job } from './audio';
 
 // A fake click: a 1.0 sample at its start and a 0.5 ring over the next 3 samples, like a real click that rings on.
 const SR = 100;
@@ -130,5 +130,22 @@ describe('click patterns', () => {
 
   it('the sound settings travel with the job, so an export sounds like playback', () => {
     expect(clickEvents(tl, 0, 0, { subdivide: false, kit: 'wood', volume: 0.5 }).sound).toEqual({ kit: 'wood', volume: 0.5 });
+  });
+});
+
+describe('silent bars', () => {
+  const four = { beats: [0, 1, 2, 3].flatMap((bar) => [0, 1].map((k) => ({ time: bar + k / 2, measure: bar, step: bar, accent: (k === 0 ? 2 : 1) as 1 | 2 }))), steps: [0, 1, 2, 3].map((m) => ({ measure: m, time: m })), measureCount: 4, duration: 4, parts: [], partOfStep: [0, 0, 0, 0] };
+  const bars = (silent: 'off' | 'alternate' | 'fourth') => [...new Set(clickEvents(four, 0, 3, { subdivide: false, silent }).events.map((e) => Math.floor(e.t)))];
+
+  it('drops every other bar, or every fourth', () => {
+    expect(bars('off')).toEqual([0, 1, 2, 3]);
+    expect(bars('alternate')).toEqual([0, 2]);
+    expect(bars('fourth')).toEqual([0, 1, 2]);
+  });
+
+  it('shifts which bars drop out on every lap, so each gets its turn', () => {
+    expect([0, 1, 2, 3].filter((b) => silentBar(b, 0, 'alternate'))).toEqual([1, 3]);
+    expect([0, 1, 2, 3].filter((b) => silentBar(b, 1, 'alternate'))).toEqual([0, 2]);
+    expect(silentBar(5, 3, 'off')).toBe(false);
   });
 });
