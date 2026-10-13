@@ -73,6 +73,42 @@ routerAdd('POST', '/api/metronome/register', (e) => {
   return e.json(200, { ok: true });
 });
 
+// ---------- share links: markup in, short code out (never a PDF) ----------
+routerAdd('POST', '/api/metronome/share', (e) => {
+  const body = e.requestInfo().body;
+  const kind = String(body.kind || '');
+  const data = String(body.data || '');
+  const title = String(body.title || '').slice(0, 200);
+  if (kind !== 'piece' && kind !== 'playlist') throw new BadRequestError('Unknown kind of share.');
+  // the payload is the client's compressed, URL-safe encoding; anything else is not a share
+  if (!/^[A-Za-z0-9_-]{1,600000}$/.test(data)) throw new BadRequestError('That is not a valid share.');
+  const owner = e.auth;
+  if (owner.getBool('blocked')) throw new ForbiddenError('This account has been blocked.');
+
+  const hash = $security.sha256(`${kind}.${data}`);
+  try { // sharing the same thing again gives the same link
+    const same = $app.findFirstRecordByFilter('shares', 'owner = {:o} && hash = {:h}', { o: owner.id, h: hash });
+    return e.json(200, { code: same.getString('code') });
+  } catch (_) { /* not shared before */ }
+  if ($app.countRecords('shares', $dbx.hashExp({ owner: owner.id })) >= 200) throw new BadRequestError('You have reached the limit of share links.'); // (handlers run in their own scope: no shared top-level constants)
+
+  const record = new Record($app.findCollectionByNameOrId('shares'));
+  record.set('code', $security.randomStringWithAlphabet(8, 'abcdefghjkmnpqrstuvwxyz23456789'));
+  record.set('owner', owner.id);
+  record.set('kind', kind);
+  record.set('title', title);
+  record.set('data', data);
+  record.set('hash', hash);
+  $app.save(record);
+  return e.json(200, { code: record.getString('code') });
+}, $apis.requireAuth('users'));
+
+routerAdd('GET', '/api/metronome/share/{code}', (e) => {
+  let record;
+  try { record = $app.findFirstRecordByFilter('shares', 'code = {:c}', { c: e.request.pathValue('code') }); } catch (_) { throw new NotFoundError('This share link is not valid.'); }
+  return e.json(200, { kind: record.getString('kind'), title: record.getString('title'), data: record.getString('data') });
+});
+
 // ---------- administration (every route re-checks the role on the server) ----------
 
 routerAdd('GET', '/api/metronome/admin/settings', (e) => {

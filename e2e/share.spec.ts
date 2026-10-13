@@ -1,8 +1,9 @@
 import { expect, test, createUser, signInContext } from './fixtures';
 import type { Page } from '@playwright/test';
+import { copyFileSync } from 'node:fs';
 import { makePdf } from './make-pdf.mjs';
 
-test.beforeAll(() => makePdf('e2e/score.pdf'));
+test.beforeAll(() => { makePdf('e2e/score.pdf'); copyFileSync('e2e/score.pdf', 'e2e/score-b.pdf'); });
 
 /** The owner uploads a PDF, detects 8 measures, sets tempo 88 and a repeat, and returns a share link. */
 async function shareLink(page: Page) {
@@ -23,8 +24,8 @@ async function shareLink(page: Page) {
   const dlg = page.getByRole('dialog', { name: 'Library' });
   await dlg.getByRole('button', { name: 'Share' }).click();
   const url = await dlg.getByLabel('Share link').inputValue();
-  expect(url).toContain('#share=');
-  expect(url.length).toBeLessThan(2000);
+  expect(url).toMatch(/#s=[a-z0-9]{8}$/);
+  expect(url.length).toBeLessThan(80);
   await expect(dlg).toContainText('markup only');
   return url;
 }
@@ -75,7 +76,7 @@ test('signing in from a shared link offers to import it, without a PDF', async (
   await imp.getByRole('button', { name: 'Import' }).click();
   await expect(g.getByRole('button', { name: /^Measure \d/ })).toHaveCount(8);
   await expect(g.locator('label.file')).toContainText('Attach PDF');
-  expect(g.url()).not.toContain('#share');
+  expect(g.url()).not.toContain('#s=');
   await guestCtx.close();
 });
 
@@ -105,5 +106,52 @@ test('cancelling an import leaves the library untouched', async ({ page, browser
   await p2.getByRole('dialog', { name: 'Import shared piece' }).getByRole('button', { name: 'Cancel' }).click();
   await p2.getByRole('button', { name: 'Library' }).click();
   await expect(p2.getByRole('dialog', { name: 'Library' })).toContainText('Nothing saved yet');
+  await ctx.close();
+});
+
+test('sharing the same piece twice gives the same short link, and an unknown code is rejected', async ({ page, browser }) => {
+  const url = await shareLink(page);
+  const dlg = page.getByRole('dialog', { name: 'Library' });
+  await dlg.getByRole('button', { name: 'Share' }).click();
+  expect(await dlg.getByLabel('Share link').inputValue()).toBe(url);
+
+  const g = await (await browser.newContext()).newPage();
+  await g.goto('/#s=zzzzzzzz');
+  await expect(g.getByText('That share link is not valid.')).toBeVisible();
+});
+
+test('a playlist is shared as one short link and imported with its pieces', async ({ page, browser }) => {
+  await page.goto('/');
+  for (const f of ['e2e/score.pdf', 'e2e/score-b.pdf']) {
+    const before = (await page.locator('main').getAttribute('data-piece')) ?? '';
+    await page.locator('header input[type=file]').setInputFiles(f);
+    await expect(page.locator('main')).not.toHaveAttribute('data-piece', before); // the new piece is open
+    await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Auto-detect' }).click();
+    await expect(page.locator('.box')).toHaveCount(8);
+    await page.waitForTimeout(400);
+  }
+  await page.getByRole('button', { name: 'Playlists' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Playlists' });
+  page.once('dialog', (d) => void d.accept('Gig'));
+  await dlg.getByRole('button', { name: 'New playlist' }).click();
+  await dlg.getByLabel('Add a piece').selectOption({ label: 'score' });
+  await dlg.getByLabel('Add a piece').selectOption({ label: 'score-b' });
+  await dlg.getByRole('button', { name: 'Share playlist' }).click();
+  const url = await dlg.getByLabel('Share link').inputValue();
+  expect(url).toMatch(/#s=[a-z0-9]{8}$/);
+
+  const ctx = await browser.newContext();
+  await signInContext(ctx, await createUser());
+  const p2 = await ctx.newPage();
+  await p2.goto(url);
+  const imp = p2.getByRole('dialog', { name: 'Import shared playlist' });
+  await expect(imp).toContainText('Gig');
+  await expect(imp).toContainText('2 pieces');
+  await imp.getByRole('button', { name: 'Import' }).click();
+  await p2.getByRole('button', { name: 'Playlists' }).click();
+  const list = p2.getByRole('dialog', { name: 'Playlists' });
+  await list.locator('select').first().selectOption({ label: 'Gig' });
+  await expect(list.getByRole('listitem')).toHaveCount(2);
   await ctx.close();
 });

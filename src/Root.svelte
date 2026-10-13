@@ -3,7 +3,7 @@
   import { auth, refreshSession } from './features/auth/auth.svelte';
   import { inviteFromHash } from './features/auth/invite';
   import SignIn from './features/auth/SignIn.svelte';
-  import { codeFromHash, decodeShare } from './features/share/codec';
+  import { hasShareHash, openShare } from './features/share/link';
   import GuestView from './features/share/GuestView.svelte';
   import type { Piece } from './shared/types';
 
@@ -14,15 +14,17 @@
   const joined = () => { history.replaceState(null, '', location.pathname + location.search); invite = null; };
 
   // A share link opened while signed out is shown read-only; signing in then offers to import it.
-  const code = codeFromHash(location.hash);
+  // (a shared playlist has no read-only view: signing in offers to import it)
   let guest = $state<{ title: string; piece: Piece } | null>(null);
-  const startsDecoding = !!code && !auth.user;
+  let listTitle = $state('');
+  const startsDecoding = hasShareHash(location.hash) && !auth.user;
   let decoding = $state(startsDecoding);
   let invalid = $state(false);
   let wantsSignIn = $state(false);
   if (startsDecoding) {
-    void decodeShare(code!).then((g) => {
-      guest = g;
+    void openShare(location.hash).then((g) => {
+      if (g?.kind === 'piece') guest = g;
+      else if (g) listTitle = g.title;
       invalid = !g;
       decoding = false;
     });
@@ -37,7 +39,7 @@
 {:else if guest && !wantsSignIn}
   <GuestView title={guest.title} piece={guest.piece} onsignin={() => (wantsSignIn = true)} />
 {:else}
-  <SignIn invite={invite} onjoined={joined} note={guest ? `Sign in to save a copy of “${guest.title}”.` : invalid ? 'That share link is not valid.' : ''} />
+  <SignIn invite={invite} onjoined={joined} note={guest ? `Sign in to save a copy of “${guest.title}”.` : listTitle ? `Sign in to save a copy of the playlist “${listTitle}”.` : invalid ? 'That share link is not valid.' : ''} />
 {/if}
 
 <style>

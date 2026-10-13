@@ -19,12 +19,13 @@
   import { ocrPages } from './features/score/ocr';
   import { barChecks } from './features/score/barnumbers';
   import PdfView from './features/score/PdfView.svelte';
-  import { codeFromHash, decodeShare } from './features/share/codec';
+  import { hasShareHash, openShare } from './features/share/link';
+  import type { Shared } from './features/share/codec';
   import { app, timeline } from './shared/store.svelte';
   import { emptyPiece } from './shared/types';
   import AdminPanel from './features/admin/AdminPanel.svelte';
   import PlaylistPanel from './features/playlist/PlaylistPanel.svelte';
-  import { initPlaylists } from './features/playlist/playlist.svelte';
+  import { createPlaylist, initPlaylists, touch } from './features/playlist/playlist.svelte';
   import LibraryPanel from './features/library/LibraryPanel.svelte';
   import { attachPdf, create, entry, init, lastId, lib, loadPdf, rememberLast, rename, saveCurrent, useUser } from './features/library/library.svelte';
   import { auth, signOut } from './features/auth/auth.svelte';
@@ -129,26 +130,34 @@
     await importFromHash();
   })();
 
-  let incoming = $state<{ title: string; piece: typeof app.piece } | null>(null);
+  let incoming = $state<Shared | null>(null);
   let importDialog: HTMLDialogElement;
 
   /** A share link carries markup only; confirm before adding it to the library. */
   async function importFromHash() {
-    const code = codeFromHash(location.hash);
-    if (!code) return;
+    if (!hasShareHash(location.hash)) return;
+    const hash = location.hash;
     history.replaceState(null, '', location.pathname + location.search); // never re-import on reload
-    const decoded = await decodeShare(code);
-    if (!decoded) { status = 'That share link is not valid.'; return; }
-    incoming = decoded;
+    const shared = await openShare(hash);
+    if (!shared) { status = 'That share link is not valid.'; return; }
+    incoming = shared;
     importDialog.showModal();
   }
   async function acceptImport() {
     importDialog.close();
-    if (!incoming) return;
-    const id = await create(incoming.title || 'Shared piece', undefined, incoming.piece);
+    const shared = incoming;
     incoming = null;
-    await openEntry(id);
-    status = 'Imported without a PDF. Use "Attach PDF" to put your own copy of the score behind it.';
+    if (!shared) return;
+    if (shared.kind === 'piece') {
+      await openEntry(await create(shared.title || 'Shared piece', undefined, shared.piece));
+      status = 'Imported without a PDF. Use "Attach PDF" to put your own copy of the score behind it.';
+      return;
+    }
+    const list = await createPlaylist(shared.title || 'Shared playlist');
+    list.gap = shared.gap;
+    for (const it of shared.items) list.items.push(await create(it.title, undefined, it.piece));
+    await touch(list);
+    status = `Imported the playlist “${list.name}” with ${shared.items.length} pieces, without PDFs. Attach your own PDFs from the Library.`;
   }
 
   const player = new Player();
@@ -472,10 +481,10 @@
   </details>
 </header>
 
-<dialog bind:this={importDialog} aria-label="Import shared piece" onclose={() => (incoming = null)}>
+<dialog bind:this={importDialog} aria-label="Import shared {incoming?.kind ?? 'piece'}" onclose={() => (incoming = null)}>
   {#if incoming}
-    <h3>Import shared piece?</h3>
-    <p><strong>{incoming.title}</strong> · {incoming.piece.measures.length} measures</p>
+    <h3>Import shared {incoming.kind === 'piece' ? 'piece' : 'playlist'}?</h3>
+    <p><strong>{incoming.title}</strong> · {incoming.kind === 'piece' ? `${incoming.piece.measures.length} measures` : `${incoming.items.length} pieces`}</p>
     <p class="mut">Shared links contain the markup (tempos, meters, repeats), not the score. You can attach your own PDF afterwards.</p>
     <div class="row">
       <Button variant="primary" onclick={() => void acceptImport()}>Import</Button>

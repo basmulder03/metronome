@@ -3,6 +3,8 @@
   import { buildTimeline, countIn } from '../tempo-map/timeline';
   import { entry, lib } from '../library/library.svelte';
   import Button from '../../shared/ui/Button.svelte';
+  import { encodePlaylist } from '../share/codec';
+  import { shortLink } from '../share/link';
   import { createPlaylist, move, pl, removePlaylist, touch, type Playlist } from './playlist.svelte';
 
   let { subdivide }: { subdivide: boolean } = $props();
@@ -73,6 +75,18 @@
     } finally { busy = false; }
   }
 
+  let link = $state<{ id: string; url: string } | null>(null);
+  let copied = $state(false);
+  async function share() {
+    if (!sel) return;
+    const items = playable.map((r) => ({ title: r.e!.title, piece: $state.snapshot(r.e!.piece) }));
+    link = { id: sel.id, url: await shortLink('playlist', sel.name, await encodePlaylist(sel.name, sel.gap, items)) };
+    copied = false;
+  }
+  async function copy() {
+    try { await navigator.clipboard.writeText(link!.url); copied = true; } catch { /* clipboard blocked: the link is selectable */ }
+  }
+
   function drop(p: Playlist) {
     if (!confirm(`Delete playlist "${p.name}"? The pieces stay in your library.`)) return;
     if (selectedId === p.id) selectedId = null;
@@ -134,7 +148,15 @@
       <div class="row">
         <Button variant="primary" disabled={!playable.length} onclick={() => void play()}>Play playlist</Button>
         <Button disabled={!playable.length || busy} onclick={() => void exportWav()}>{busy ? `Rendering… ${Math.round(progress * 100)}%` : 'Export one WAV'}</Button>
+        <Button disabled={!playable.length} onclick={() => void share()}>Share playlist</Button>
       </div>
+      {#if link?.id === sel.id}
+        <div class="link">
+          <input readonly aria-label="Share link" value={link.url} onfocus={(ev) => ev.currentTarget.select()} />
+          <Button size="sm" onclick={() => void copy()}>{copied ? 'Copied' : 'Copy'}</Button>
+          <p class="mut">Contains the markup of every piece, not the PDFs. Whoever opens it attaches their own copies.</p>
+        </div>
+      {/if}
     {/if}
   {/if}
 </dialog>
@@ -148,6 +170,9 @@
   li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
   .acts { display: flex; gap: var(--space-1); }
   .row { margin-bottom: var(--space-3); }
+  .link { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .link input { flex: 1; min-width: 0; }
+  .link .mut { flex-basis: 100%; margin: 0; font-size: var(--font-sm); }
   .now { display: grid; gap: var(--space-2); justify-items: start; }
   .now p { margin: 0; }
   .title { font-size: 1.25rem; font-weight: 700; }

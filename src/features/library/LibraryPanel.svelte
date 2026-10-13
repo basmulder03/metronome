@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from '../../shared/ui/Button.svelte';
-  import { encodeShare, shareUrl } from '../share/codec';
+  import { encodeShare } from '../share/codec';
+  import { shortLink } from '../share/link';
   import { exportBackup, parseBackup } from './backup';
   import { attachPdf, create, duplicate, lib, rename, remove } from './library.svelte';
 
@@ -19,7 +20,7 @@
   async function share(id: string) {
     const e = lib.entries.find((x) => x.id === id);
     if (!e) return;
-    link = { id, url: shareUrl(await encodeShare(e.title, $state.snapshot(e.piece))) };
+    link = { id, url: await shortLink('piece', e.title, await encodeShare(e.title, $state.snapshot(e.piece))) };
     copied = false;
   }
   async function copy() {

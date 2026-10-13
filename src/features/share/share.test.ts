@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPiece, type Piece } from '../../shared/types';
-import { decodeShare, encodeShare } from './codec';
+import { decodeAny, decodeShare, encodePlaylist, encodeShare } from './codec';
 import { validatePiece } from './validate';
 
 const sample = (): Piece => {
@@ -110,5 +110,24 @@ describe('compact links', () => {
     expect(back!.piece.measures).toHaveLength(300);
     expect(back!.piece.measures[3].marks).toEqual({ multirest: 4 });
     expect(back!.piece.measures[1].rect.x).toBeCloseTo(ms[1].rect.x, 4);
+  });
+});
+
+describe('playlist share', () => {
+  it('round-trips pieces and gap, and a piece code is not a playlist', async () => {
+    const code = await encodePlaylist('Gig', 6, [{ title: 'A', piece: sample() }, { title: 'B', piece: sample() }]);
+    const out = await decodeAny(code);
+    expect(out?.kind).toBe('playlist');
+    if (out?.kind !== 'playlist') return;
+    expect(out.gap).toBe(6);
+    expect(out.items.map((x) => x.title)).toEqual(['A', 'B']);
+    expect(out.items[1].piece.measures).toHaveLength(4);
+    expect(await decodeShare(code)).toBeNull();
+  });
+
+  it('rejects a playlist with one bad piece or none', async () => {
+    const bad = { ...sample(), measures: [{ page: 0, rect: { x: 2, y: 0, w: 0.1, h: 0.1 } }] } as never;
+    expect(await decodeAny(await encodePlaylist('x', 4, [{ title: 'A', piece: sample() }, { title: 'B', piece: bad }]))).toBeNull();
+    expect(await decodeAny(await encodePlaylist('x', 4, []))).toBeNull();
   });
 });
