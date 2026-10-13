@@ -50,7 +50,7 @@
 {#if m}
   <details class="sec" open>
     <summary>Parts of this sheet</summary>
-    <p class="mut">If one sheet holds several parts (movements, sections), mark where each starts and name it. Playback can then stop after each part, or play straight through.</p>
+    <p class="mut">Does one sheet hold several pieces or movements? Mark where each one starts and give it a name. Playback can then stop after each, or run straight through.</p>
     <label class="check"><input type="checkbox" checked={!!k.part} onchange={(e) => startPart(e.currentTarget.checked)} /> A new part starts at this measure</label>
     {#if k.part}
       <label>Name of the part
@@ -64,7 +64,7 @@
 
   <details class="sec" open>
     <summary>Multi-measure rest</summary>
-    <p class="mut">A long rest printed as one box with a number over it stands for that many bars. Enter the number so the click runs for all of them; later boxes then carry the printed bar numbers.</p>
+    <p class="mut">A long rest drawn as one box with a number over it stands for that many bars. Enter that number so the click counts them all. The boxes after it then keep the printed bar numbers.</p>
     <div class="row">
       <label>Bars in this rest
         <input type="number" min="1" max="999" placeholder="1" value={k.multirest ?? ''}
@@ -75,7 +75,7 @@
 
   <details class="sec" open>
     <summary>Length and holds</summary>
-    <p class="mut">For an upbeat, mark the first bar as "only the last beats". A piece that began with one usually ends with a bar that is "only the first beats", which completes it.</p>
+    <p class="mut">For an upbeat, mark the first bar as “only the last beats”. A piece that starts with an upbeat usually ends with a bar of “only the first beats”, which completes it.</p>
     <div class="row">
       <label>Written part of this bar
         <select value={part} onchange={(e) => setPart(e.currentTarget.value as Part)}>

@@ -22,7 +22,7 @@ async function ownerShares(page: Page) {
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: 'Library' }).click();
   const lib = page.getByRole('dialog', { name: 'Library' });
-  await lib.getByLabel(/also let people with an account edit/).check();
+  await lib.getByLabel(/Let people with an account edit the pieces I share/).check();
   await lib.getByRole('button', { name: 'Share', exact: true }).click();
   const url = await lib.getByLabel('Share link').inputValue();
   expect(url).toMatch(/#s=/);

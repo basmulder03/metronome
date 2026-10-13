@@ -173,7 +173,7 @@ test.describe('re-detecting, renaming and reusing a click track', () => {
     await expect(label(page, 2)).toContainText('=140');
 
     await page.getByRole('button', { name: 'Auto-detect' }).click();
-    await expect(page.getByRole('status')).toContainText('Tempos and time signatures you had set are kept');
+    await expect(page.getByRole('status')).toContainText('Your tempos and time signatures are kept');
     await expect(page.locator('.box')).toHaveCount(8);
     await expect(label(page, 2)).toContainText('=140');
     await expect(label(page, 5)).toContainText(':|');

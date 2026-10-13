@@ -248,7 +248,7 @@ test('a second ramp cannot overlap the first', async ({ page }) => {
   await page.getByLabel('Last measure').blur();
 
   await page.locator('.box').nth(1).click();
-  await expect(page.getByText('already inside the ramp from measure 1 to 2')).toBeVisible();
+  await expect(page.getByText('already part of the ramp from measure 1 to 2')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Rallentando from here' })).toHaveCount(0);
 
   await page.locator('.box').nth(3).click(); // measure 4 is free

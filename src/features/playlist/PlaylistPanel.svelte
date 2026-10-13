@@ -132,7 +132,7 @@
           </li>
         {/each}
       </ol>
-      {#if rows.length === 0}<p class="mut">Empty. Add pieces from your library below.</p>{/if}
+      {#if rows.length === 0}<p class="mut">Nothing in here yet. Add pieces from your library below.</p>{/if}
 
       <div class="row">
         <label>Add a piece

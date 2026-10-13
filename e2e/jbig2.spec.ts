@@ -36,7 +36,7 @@ test('one Auto-detect click finds the measures on every page of a multi-page sco
   await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/jbig2-scan.pdf');
   await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
   await page.getByRole('button', { name: 'Auto-detect' }).click();
-  await expect(page.getByRole('status')).toContainText('on 3 of 3 pages');
+  await expect(page.getByRole('status')).toContainText('on 3 pages');
   for (const n of [2, 3]) {
     await page.getByRole('button', { name: 'Next page' }).click();
     await expect(page.getByText(`${n}/3`)).toBeVisible();

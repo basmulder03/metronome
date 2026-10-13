@@ -222,7 +222,7 @@ test.describe('in the browser', () => {
     await pb.setRegistration('invite');
     const { ctx, page } = await guest(browser);
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-    await expect(page.getByText('New accounts are by invitation only')).toBeVisible();
+    await expect(page.getByText('You need an invitation to make an account')).toBeVisible();
     await expect(page.getByRole('button', { name: /Create an account/ })).toHaveCount(0);
     await ctx.close();
   });

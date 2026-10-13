@@ -45,7 +45,7 @@
     {#if joining && typeof invited === 'object' && invited}
       <p class="note">Hi {invited.name}, you have been invited. Choose a password to create your account.</p>
     {:else}
-      <p class="mut">Metronome turns the score you provide into a click track. Your library and playlists follow you across devices; scores themselves never leave your device.</p>
+      <p class="mut">Metronome turns your score into a click track. Your library and playlists follow you from device to device. The scores themselves never leave your device.</p>
     {/if}
     {#if invited === null && invite}<p class="note" role="alert">This invitation is not valid, has expired or was already used. You can still sign in below.</p>{/if}
     {#if auth.notice}<p class="note" role="status">{auth.notice}</p>{/if}
@@ -59,7 +59,7 @@
         {mode === 'in' ? 'New here? Create an account' : 'Already have an account? Sign in'}
       </button>
     {:else if !joining && registration === 'invite'}
-      <p class="mut">New accounts are by invitation only. Ask the administrator for an invitation link.</p>
+      <p class="mut">You need an invitation to make an account. Ask the administrator for a link.</p>
     {/if}
   </form>
 </main>

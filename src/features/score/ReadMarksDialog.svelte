@@ -18,7 +18,7 @@
 
 <dialog bind:this={dialog} aria-label="Read from PDF" onclose={oncancel}>
   <h3>Found in the PDF</h3>
-  <p class="mut">Tick what to add. Anything you already set is kept. Items marked “check” are guesses (for example the tempo a rit. ends on); fine-tune them in the editor afterwards.</p>
+  <p class="mut">Tick what you want to add. Anything you already set stays as it is. Items marked “check” are guesses (like the tempo a rit. slows down to), so give them a look afterwards.</p>
   <ul>
     {#each suggestions as s (s.id)}
       <li>

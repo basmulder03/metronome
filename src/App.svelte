@@ -162,9 +162,9 @@
       await syncNow();
       if (entry(pieceId)) {
         await openEntry(pieceId);
-        status = 'You are editing this piece together with its owner: changes sync, and edits you both made are merged. Attach your own PDF to see the score.';
-      } else status = 'You joined, but the piece has not arrived yet. Try “Sync now” in Options.';
-    } catch { status = 'Could not join this piece. The link may have ended, or you are offline.'; }
+        status = "You're now editing this piece with its owner. Your changes sync, and if you both edit at the same time they get merged. Attach your own PDF to see the score.";
+      } else status = "You joined, but the piece hasn't arrived yet. Try “Sync now” in Options.";
+    } catch { status = "Couldn't join this piece. The link may have expired, or you're offline."; }
   }
   async function acceptImport() {
     importDialog.close();
@@ -173,14 +173,14 @@
     if (!shared) return;
     if (shared.kind === 'piece') {
       await openEntry(await create(shared.title || 'Shared piece', undefined, shared.piece));
-      status = 'Imported without a PDF. Use "Attach PDF" to put your own copy of the score behind it.';
+      status = 'Imported without the PDF. Tap “Attach PDF” to add your own copy of the score.';
       return;
     }
     const list = await createPlaylist(shared.title || 'Shared playlist');
     list.gap = shared.gap;
     for (const it of shared.items) list.items.push(await create(it.title, undefined, it.piece));
     await touch(list);
-    status = `Imported the playlist “${list.name}” with ${shared.items.length} pieces, without PDFs. Attach your own PDFs from the Library.`;
+    status = `Imported the playlist “${list.name}” with ${shared.items.length} pieces. They come without PDFs: add yours from the Library.`;
   }
 
   const player = new Player();
@@ -262,7 +262,7 @@
     if (!next) return;
     app.selected = next.measure;
     if (doc) pageNum = app.piece.measures[next.measure].page;
-    status = `End of “${tl.parts[tl.partOfStep[endStep]].name}”. Press Space or Play to continue with “${tl.parts[tl.partOfStep[endStep + 1]].name}”.`;
+    status = `End of “${tl.parts[tl.partOfStep[endStep]].name}”. Press Space or Play to carry on with “${tl.parts[tl.partOfStep[endStep + 1]].name}”.`;
   }
 
   /** The playback bar was dragged (or its keys used): the picked measure follows, and playing restarts there once released. */
@@ -319,7 +319,7 @@
     edits.checkpoint(); // detecting is one undo step
     let total = 0, pagesWith = 0;
     for (let i = 0; i < doc.numPages; i++) {
-      status = `Detecting measures… page ${i + 1} of ${doc.numPages}`;
+      status = `Looking for measures… page ${i + 1} of ${doc.numPages}`;
       const rects = detectMeasures(await view.bitmap(1400, i));
       if (!rects.length) continue; // leave a page alone that shows no staves (a title page, say)
       replaceBoxes(app.piece, i, rects);
@@ -329,8 +329,8 @@
     app.selected = -1;
     mode = 'select';
     status = total
-      ? `Found ${total} measures on ${pagesWith} of ${doc.numPages} pages. Tempos and time signatures you had set are kept. Check the boxes, then fix misses by dragging, with Split (S) or Merge (M).${looksLikePickup(app.piece) ? ' Measure 1 looks short: if it is an upbeat, select it and choose "Only the last beats".' : ''}`
-      : 'No staves found — draw the boxes by hand.';
+      ? `Found ${total} measures on ${pagesWith === doc.numPages ? `${pagesWith} ${pagesWith === 1 ? 'page' : 'pages'}` : `${pagesWith} of ${doc.numPages} pages`}. Your tempos and time signatures are kept. Look the boxes over and fix any misses by dragging, or with Split (S) and Merge (M).${looksLikePickup(app.piece) ? ' Measure 1 looks short. If it is an upbeat, pick it and choose “Only the last beats”.' : ''}`
+      : "Couldn't find any staves. You can draw the boxes by hand.";
   }
 
   const current = $derived(entry(lib.currentId));
@@ -350,7 +350,7 @@
 
   /** Ctrl+S: write the piece to this device right now and push it to the account, instead of waiting for the autosave. */
   async function saveNow() {
-    if (!lib.currentId) { status = 'Nothing to save yet: open a PDF first.'; return; }
+    if (!lib.currentId) { status = 'Nothing to save yet. Open a PDF first.'; return; }
     clearTimeout(saveTimer);
     saveState = 'saving';
     await saveCurrent(app.piece);
@@ -396,7 +396,7 @@
       case 'mode': mode = a.mode; break;
       case 'merge':
         if (has) edits.checkpoint();
-        if (has && !mergeMeasures(app.piece, i)) status = 'Nothing to merge with: the next measure has to be on the same page.';
+        if (has && !mergeMeasures(app.piece, i)) status = "Can't merge: the next measure has to be on the same page.";
         break;
       case 'tidy':
         if (has) {
@@ -452,12 +452,12 @@
     const text = suggestFromText(texts, app.piece);
     if (!text.length && texts.every((t) => !t.items.length)) { // a scan: offer OCR (which reads the repeat signs along with the rest)
       ocrOffer = true;
-      status = 'This PDF has no text layer (it looks like a scan). OCR can read tempo marks and rit./accel. words from it, and repeat signs are read with it, but not time signatures.';
+      status = 'This PDF has no text layer (it looks like a scan). OCR can read tempo marks, rit./accel. words and repeat signs from it, but not time signatures.';
       return;
     }
     const s = [...text, ...(await repeatHints())];
     if (!s.length) {
-      status = 'No tempo marks, time signatures, rit./accel. words or repeat signs found. Set them in the editor.';
+      status = "Couldn't find any tempo marks, time signatures, rit./accel. words or repeat signs. You can set them by hand.";
       return;
     }
     showFound(s);
@@ -474,19 +474,19 @@
   async function readWithOcr() {
     if (!doc) return;
     ocrOffer = false;
-    status = 'Loading the OCR engine (first time only)…';
+    status = 'Loading the OCR engine (only needed the first time)…';
     try {
       const { texts, signals } = await ocrPages(doc, app.piece.measures, (d, t) => (status = `Reading the page text… ${d}/${t}`));
       const s = [...suggestFromText(texts, app.piece), ...barChecks(app.piece.measures, signals), ...(await repeatHints())];
       if (s.length) showFound(s);
-      else status = 'OCR found no tempo marks, rit./accel. words or bar-number problems. Set them in the editor.';
+      else status = "OCR didn't find any tempo marks, rit./accel. words or bar-number problems. You can set them by hand.";
     } catch {
-      status = 'OCR could not run (is the connection down on the first use?). Set tempos in the editor.';
+      status = "OCR couldn't run. It needs a connection the first time. You can set tempos by hand.";
     }
   }
   function addFound(chosen: Suggestion[]) {
     const { applied, skipped } = applySuggestions(app.piece, chosen);
-    status = `Added ${applied}${skipped ? `, kept ${skipped} you had already set` : ''}. Check them in the editor.`;
+    status = `Added ${applied}${skipped ? `, kept ${skipped} you had already set` : ''}. Have a look at them in the editor.`;
     found = null;
   }
 
@@ -558,7 +558,7 @@
       <label>Theme <ThemeToggle /></label>
       <Button size="sm" onclick={() => shortcutsDialog?.show()}>Keyboard shortcuts (?)</Button>
       <div class="acct">
-        <span class="mut">{sync.status === 'syncing' ? 'Syncing…' : sync.status === 'offline' ? 'Offline: changes sync when you reconnect' : sync.status === 'error' ? 'Sync failed, try again' : sync.last ? 'Up to date' : 'Not synced yet'}</span>
+        <span class="mut">{sync.status === 'syncing' ? 'Syncing…' : sync.status === 'offline' ? "Offline. Your changes sync when you're back online" : sync.status === 'error' ? "Couldn't sync. Try again." : sync.last ? 'Up to date' : 'Not synced yet'}</span>
         <Button size="sm" onclick={() => void syncNow()} disabled={sync.status === 'syncing'}>Sync now</Button>
         <span class="mut">Signed in as {auth.user?.email}</span>
         <Button size="sm" onclick={signOut}>Sign out</Button>
@@ -572,7 +572,7 @@
   {#if incoming}
     <h3>Import shared {incoming.kind === 'piece' ? 'piece' : 'playlist'}?</h3>
     <p><strong>{incoming.title}</strong> · {incoming.kind === 'piece' ? `${incoming.piece.measures.length} measures` : `${incoming.items.length} pieces`}</p>
-    <p class="mut">Shared links contain the markup (tempos, meters, repeats), not the score. You can attach your own PDF afterwards.</p>
+    <p class="mut">A shared link carries the markings (tempos, meters, repeats), not the score. You can add your own PDF afterwards.</p>
     {#if incoming.kind === 'piece' && incoming.edit}
       <p><strong>{incoming.edit.by}</strong> lets people with an account edit this piece. If you join, you both work on the same piece: changes sync, and when you both edit, the edits are merged.</p>
       <div class="row">
@@ -594,6 +594,7 @@
 <PlaylistPanel bind:this={playlistPanel} />
 <LibraryPanel bind:this={libraryPanel} onopen={(id) => void openEntry(id)} onreplace={async (id, blob) => { if (id === lib.currentId) { doc = await load(blob); pageNum = 0; } }} />
 {#if current}
+<div class="subbar">
   <div class="titlebar"><strong>{current.title}</strong><Button size="sm" onclick={() => void renameCurrent()} title="Rename (F2)">Rename</Button>
     <Button size="sm" disabled={!doc} onclick={() => (preview = !preview)} aria-pressed={preview} title="Show the piece the way someone sees it from a share link, without your PDF">{preview ? 'Back to score' : 'See share view'}</Button>
     <span class="saved" aria-live="polite">{savedText}</span>
@@ -607,9 +608,6 @@
       <Button size="sm" disabled={selectedPart < 0 || busy} onclick={() => void exportWav(parts[selectedPart])} title="Export only the selected part as audio">Export this part</Button>
     {/if}
   </div>
-{/if}
-
-{#if current}
   <!-- always the same height and never wraps, so picking a measure does not move the page under your finger -->
   <div class="tools" role="toolbar" aria-label="Editing">
     <Button size="sm" aria-label="Undo" title="Undo (Ctrl+Z)" onclick={() => run({ type: 'undo' })}>↶ Undo</Button>
@@ -619,6 +617,7 @@
     <Button size="sm" disabled={app.selected < 0} onclick={() => run({ type: 'merge' })} title="Join this box with the next one (M)">Merge with next</Button>
     <Button size="sm" disabled={app.selected < 0} onclick={() => run({ type: 'tidy' })} title="Same top and height for the whole row, bars connected (T)">Tidy row</Button>
   </div>
+</div>
 {/if}
 
 {#if status}
@@ -630,7 +629,18 @@
 <main data-piece={lib.currentId ?? ""}>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1) -->
   <div class="score" role="region" aria-label="Score" tabindex="0">
-    {#if (doc && !preview) || app.piece.measures.length === 0}
+    {#if !current}
+      <div class="welcome">
+        <h2>Turn a score into a click track</h2>
+        <ol>
+          <li><strong>Open a PDF</strong> of your score. It stays on this device.</li>
+          <li><strong>Find the measures.</strong> Auto-detect draws a box around each one, and you can fix any it missed.</li>
+          <li><strong>Set the tempo and time signature,</strong> then press Play and play along.</li>
+        </ol>
+        <label class="file start">Open a PDF<input type="file" accept="application/pdf" onchange={open} hidden /></label>
+        <p class="mut">Pieces you already made are in the Library.</p>
+      </div>
+    {:else if (doc && !preview) || app.piece.measures.length === 0}
       <PdfView bind:this={view} {doc} {pageNum} {zoom} {mode} {snap} {stylus} onpen={() => (stylus = true)} onstep={() => edits.checkpoint()} />
     {:else}
       <MeasureStrip />
@@ -646,7 +656,9 @@
 </div>
 
 <style>
-  header { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
+  header { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
+  /* with a mouse and keyboard the toolbar can be a little tighter (touch screens keep the big targets) */
+  @media (pointer: fine) { header :global(button), header .file, .opts summary { min-height: 36px; padding: 5px 10px; font-size: 14px; } }
   .grp { display: flex; gap: 6px; align-items: center; flex: none; } /* fixed width: a changing label must not re-wrap the header and shift the score */
   .end { margin-left: auto; }
   .opts { position: relative; }
@@ -655,9 +667,12 @@
   .acct .mut { margin: 0; font-size: var(--font-sm); overflow-wrap: anywhere; }
   .opts .panel { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 6; display: grid; gap: var(--space-3); min-width: 220px; padding: var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow); }
   .file { display: inline-flex; flex-direction: row; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-height: var(--tap); cursor: pointer; color: var(--fg); font-size: var(--font-md); }
-  .titlebar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); }
+  /* the piece's name on the left, the editing tools on the right (a second row on a narrow screen) */
+  .subbar { display: flex; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
+  .titlebar { flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); min-width: 0; }
   .titlebar strong { overflow-wrap: anywhere; }
-  .tools { display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; }
+  .tools { flex: 0 1 auto; display: flex; gap: var(--space-2); align-items: center; padding: 6px var(--space-3); overflow-x: auto; white-space: nowrap; max-width: 100%; }
+  @media (max-width: 899px) { .tools { flex-basis: 100%; border-top: 1px solid var(--border); } }
   .tools :global(button) { flex: none; }
   .saved { color: var(--fg-muted); font-size: var(--font-sm); }
   .titlebar .part { flex-direction: row; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--fg); font-size: var(--font-md); }
@@ -666,6 +681,11 @@
   dialog::backdrop { background: var(--scrim); }
   .shell { display: flex; flex-direction: column; padding-bottom: var(--bar-h); box-sizing: border-box; } /* room for the playback bar */
   main { display: grid; grid-template-columns: 1fr; }
+  .welcome { max-width: 34rem; margin: var(--space-4) auto; padding: var(--space-4); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); display: grid; gap: var(--space-3); justify-items: start; }
+  .welcome h2 { margin: 0; font-size: 1.25rem; }
+  .welcome ol { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--space-2); }
+  .welcome .start { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+  .welcome .mut { margin: 0; font-size: var(--font-sm); }
   .score { overflow: auto; padding: var(--space-2); padding-bottom: 45vh; background: var(--surface); } /* room for the phone bottom sheet */
   @media (min-width: 900px) {
     header { position: sticky; top: 0; }

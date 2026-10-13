@@ -71,10 +71,6 @@
     <h3>{barHeading(bars[i])}</h3>
     <Button size="sm" onclick={() => { removeMeasure(p, i); app.selected = -1; }}>Delete box</Button>
   </div>
-  <label class="through">Edit several: through measure
-    <input type="number" min={i + 2} max={p.measures.length} placeholder="Shift+click on a computer"
-      onchange={(e) => { const n = Math.floor(+e.currentTarget.value); if (n > i + 1 && n <= p.measures.length) app.extent = n - 1; e.currentTarget.value = ''; }} />
-  </label>
   <p class="mut">In force: {meter.num}/{meter.den} ({meter.grouping.join('+')}) · {tempoAt(p, i)?.bpm ?? DEFAULT_BPM} bpm</p>
 
   <details class="sec" open>
@@ -127,7 +123,7 @@
         <Button onclick={() => p.ramps.splice(p.ramps.indexOf(ramp), 1)}>Remove</Button>
       </div>
     {:else if enclosing}
-      <p class="mut">Measure {i + 1} is already inside the ramp from measure {enclosing.from + 1} to {enclosing.to + 1}. Select that measure to change it.</p>
+      <p class="mut">Measure {i + 1} is already part of the ramp from measure {enclosing.from + 1} to {enclosing.to + 1}. Pick measure {enclosing.from + 1} to change it.</p>
     {:else}
       <div class="row">
         <Button onclick={() => addRamp(1.25)}>Accelerando from here</Button>
@@ -138,8 +134,16 @@
 
   <PracticeSection start={i} last={i} editableEnd {onpractice} />
 
+  <details class="sec" open>
+    <summary>Several measures at once</summary>
+    <label>Edit several: through measure
+      <input type="number" min={i + 2} max={p.measures.length} placeholder="Or Shift+click on a computer"
+        onchange={(e) => { const n = Math.floor(+e.currentTarget.value); if (n > i + 1 && n <= p.measures.length) app.extent = n - 1; e.currentTarget.value = ''; }} />
+    </label>
+  </details>
+
 {:else}
-  <p class="mut">Select a measure box to edit its time signature, tempo or accel/rall.</p>
+  <p class="mut">Pick a measure to set its time signature, tempo or accel./rall.</p>
 {/if}
 
 <style>

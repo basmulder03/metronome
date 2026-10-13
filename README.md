@@ -49,6 +49,14 @@ How the live server is laid out (behind Cloudflare, next to other sites on the s
   the folder off the machine. Before a risky deploy a plain `cp -a` of `pb_data` is still a good habit.
 - Ship a new build with `DEPLOY_HOST=root@host scripts/deploy.sh`.
 
+### The screen
+
+The top row has the file, page, mode and export controls (tighter with a mouse, finger-sized on a touch screen); under it the piece's name,
+its save state and the editing tools (undo, redo, previous/next measure, merge, tidy). On a screen 900px wide or more the settings of the
+picked measure are a panel beside the score; on a narrower one they are a sheet at the bottom. The playback bar is always at the bottom.
+With no piece open there is a short welcome card instead of an empty page. The wording is meant to read like a person talking: plain,
+short and friendly, with no jargon where a plain word works.
+
 ### Editing the measure boxes
 
 - **Auto-detect** finds the measures on *every* page in one go. Running it again never wipes your work: the n-th box on a page

@@ -96,7 +96,7 @@
     </div>
   </div>
   {#if note}<p class="mut" role="status">{note}</p>{/if}
-  <label class="check allow"><input type="checkbox" bind:checked={allowEdit} /> Links I make for a piece also let people with an account edit it with me (their changes and mine are merged)</label>
+  <label class="check allow"><input type="checkbox" bind:checked={allowEdit} /> Let people with an account edit the pieces I share, too (our changes get merged)</label>
   {#if lib.entries.length > 1}
     <div class="bulk">
       <label class="check"><input type="checkbox" checked={ticked.length === lib.entries.length} onchange={(e) => (ticked = e.currentTarget.checked ? lib.entries.map((x) => x.id) : [])} /> Select all</label>
@@ -113,7 +113,7 @@
     </div>
   {/if}
   {#if lib.entries.length === 0}
-    <p class="mut">Nothing saved yet. Open a PDF to create your first piece.</p>
+    <p class="mut">Nothing saved yet. Open a PDF and your first piece will show up here.</p>
   {/if}
   <ul>
     {#each lib.entries as e (e.id)}
@@ -154,7 +154,7 @@
   ul { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
   li { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); }
   li.current { border-color: var(--accent); }
-  .title { display: grid; min-width: 0; flex: 1; }
+  .title { display: grid; min-width: 0; flex: 1 1 100%; }
   .allow { margin-top: var(--space-2); font-size: var(--font-sm); }
   .bulk { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-3); }
   .acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }

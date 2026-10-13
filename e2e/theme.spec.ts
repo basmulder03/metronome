@@ -33,7 +33,7 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(contrast(body.fg, body.bg)).toBeGreaterThan(4.5);
     const primary = await colors(page, 'button.primary');
     expect(contrast(primary.fg, primary.bg)).toBeGreaterThan(4.5);
-    const muted = await page.locator('.empty').first().evaluate((e) => ({ fg: getComputedStyle(e).color, bg: getComputedStyle(document.body).backgroundColor }));
+    const muted = await page.locator('.welcome .mut').first().evaluate((e) => ({ fg: getComputedStyle(e).color, bg: getComputedStyle(document.body).backgroundColor }));
     expect(contrast(muted.fg, muted.bg)).toBeGreaterThan(4.5);
   });
 }

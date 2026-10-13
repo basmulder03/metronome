@@ -92,7 +92,7 @@ test('set to stop after each part: it stops, announces the next part and continu
   await selectMeasure(page, 1); // start in the middle of the Intro
   await page.keyboard.press(' ');
   expect(await played(page, 2800)).toBe('234'); // to the end of the Intro and no further
-  await expect(page.getByRole('status')).toContainText('End of “Intro”. Press Space or Play to continue with “Main theme”.');
+  await expect(page.getByRole('status')).toContainText('End of “Intro”. Press Space or Play to carry on with “Main theme”.');
   await expect(page.getByRole('heading', { name: 'Measure 5' })).toBeVisible(); // the next part is ready
 
   await page.keyboard.press(' ');

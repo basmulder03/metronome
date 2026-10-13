@@ -31,6 +31,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.locator('header input[type=file]').setInputFiles('e2e/fixtures/minuet-in-g.pdf');
       await expect(page.locator('canvas[data-ready="1"]')).toBeVisible();
       await page.getByRole('button', { name: 'Auto-detect' }).click();
+      await expect(page.getByRole('status').first()).toContainText('Found'); // detection has finished: it clears the selection when it ends, so wait before picking a box
       await page.locator('.box').nth(2).click();
       await page.getByRole('button', { name: 'Set tempo here' }).click();
       await page.getByRole('button', { name: 'Accelerando from here' }).click();
